@@ -18,6 +18,7 @@ export interface IdeaValidationResult {
   status: 'exceptional' | 'valid' | 'weak' | 'off_topic';
   feedbackTitle: string;
   analysis: string;
+  thinkingExpansion: string[]; // Layer 2: 基于用户观点的个性化思路拓展（中文）
 }
 
 const getApiConfig = (): { apiKey: string, model: string } => {
@@ -95,14 +96,33 @@ export const fetchInspirationCards = async (topic: string): Promise<InspirationC
             },
             required: ['en', 'zh']
           }
+        },
+        thinkingExpansion: {
+          type: Type.ARRAY,
+          items: { type: Type.STRING },
+          description: "3-4 concrete thinking angles in Chinese for this dimension"
         }
       },
-      required: ['id', 'dimension', 'socraticQuestion', 'hint', 'keywords']
+      required: ['id', 'dimension', 'socraticQuestion', 'hint', 'keywords', 'thinkingExpansion']
     }
   };
 
-  const systemPrompt = "You are a CET-4/6 writing coach. Help Chinese students brainstorm. You MUST write the socraticQuestion and hint fields in Chinese (中文), so that students can easily understand. The dimension field should remain in English.";
-  const userPrompt = `Generate 3 distinct inspiration cards for the essay topic: "${topic}". Each card should represent a different perspective (e.g., Economic, Social, Personal). IMPORTANT: The "socraticQuestion" and "hint" fields MUST be written in Chinese (中文) to help students understand.`;
+  const systemPrompt = "You are a CET-4/6 writing coach. Help Chinese students brainstorm. You MUST write the socraticQuestion, hint, and thinkingExpansion fields in Chinese (中文), so that students can easily understand. The dimension field should remain in English.";
+  const userPrompt = `Generate 3 distinct inspiration cards for the essay topic: "${topic}". Each card should represent a different perspective (e.g., Economic, Social, Personal). 
+
+IMPORTANT:
+- The "socraticQuestion" and "hint" fields MUST be written in Chinese (中文) to help students understand.
+- The "thinkingExpansion" field MUST be an array of 3-4 strings in Chinese (中文). Each string is a concrete thinking angle or argument point for this dimension. These help students who have shallow initial ideas by giving them specific sub-points to develop.
+
+Example for topic "科技对教育的影响" with dimension "Economic":
+"thinkingExpansion": [
+  "在线教育平台降低了学习成本，让偏远地区学生也能获得优质资源",
+  "教育科技产业本身创造了大量就业岗位和经济价值",
+  "技术培训提升了劳动力素质，间接推动经济增长",
+  "数字鸿沟可能加剧教育不平等，影响社会经济流动性"
+]
+
+Each point should be a complete、specific argument (not vague), 15-30 Chinese characters, helping students think deeper about this dimension.`;
   
   const res = await callAI(systemPrompt, userPrompt, schema);
   return JSON.parse(res);
@@ -114,13 +134,40 @@ export const validateIdea = async (topic: string, dimension: string, idea: strin
     properties: {
       status: { type: Type.STRING, enum: ['exceptional', 'valid', 'weak', 'off_topic'] },
       feedbackTitle: { type: Type.STRING },
-      analysis: { type: Type.STRING }
+      analysis: { type: Type.STRING },
+      thinkingExpansion: {
+        type: Type.ARRAY,
+        items: { type: Type.STRING },
+        description: "3-4 personalized thinking angles based on the student's specific idea, in Chinese"
+      }
     },
-    required: ['status', 'feedbackTitle', 'analysis']
+    required: ['status', 'feedbackTitle', 'analysis', 'thinkingExpansion']
   };
 
-  const systemPrompt = "You are a strict but helpful writing coach. Evaluate the student's idea relevance. You MUST write the feedbackTitle and analysis fields in Chinese (中文), so that students can easily understand your feedback.";
-  const userPrompt = `Topic: ${topic}\nDimension: ${dimension}\nStudent Idea: ${idea}\nProvide feedback. IMPORTANT: The "feedbackTitle" and "analysis" fields MUST be written in Chinese (中文).`;
+  const systemPrompt = "You are a strict but helpful writing coach. Evaluate the student's idea relevance. You MUST write the feedbackTitle, analysis, and thinkingExpansion fields in Chinese (中文), so that students can easily understand your feedback.";
+  const userPrompt = `Topic: ${topic}\nDimension: ${dimension}\nStudent Idea: ${idea}\nProvide feedback. IMPORTANT: The "feedbackTitle" and "analysis" fields MUST be written in Chinese (中文).
+
+CRITICAL: You must also generate "thinkingExpansion" — an array of 3-4 strings in Chinese (中文). These are PERSONALIZED thinking angles that help the student DEEPEN their specific idea. 
+
+Rules for thinkingExpansion:
+- Read the student's idea carefully. Identify the core angle they chose.
+- Generate 3-4 sub-points that EXTEND and DEEPEN that specific angle (not generic dimension-level points).
+- Each point should be a concrete, specific argument (15-30 Chinese characters).
+- If the student's idea is about "数据泄露对企业的影响", the expansion should be about SPECIFIC types of enterprise impact (direct losses, legal penalties, reputation damage), NOT about general economic angles.
+- If the student's idea is weak or off-topic, provide angles that could help them find a better direction within this dimension.
+
+Example: 
+Student Idea: "数据泄露会对企业造成巨大经济损失"
+Good thinkingExpansion: [
+  "直接损失：数据恢复成本、系统停机期间的营收损失",
+  "法律风险：违反GDPR等数据保护法规可能面临巨额罚款",
+  "品牌信任危机：客户流失导致长期收入下降",
+  "连锁反应：投资者信心动摇，股价下跌，融资困难"
+]
+Bad thinkingExpansion (too generic): [
+  "信息安全产业创造就业机会",
+  "网络安全投入保障基础设施"
+]`;
   
   const res = await callAI(systemPrompt, userPrompt, schema);
   return JSON.parse(res);
@@ -239,7 +286,7 @@ export const analyzeDraft = async (topic: string, dimension: string, draft: stri
   const schema: Schema = {
     type: Type.OBJECT,
     properties: {
-      score: { type: Type.NUMBER },
+      score: { type: Type.NUMBER, description: "Score from 0 to 10 (integer). MUST be between 0 and 10." },
       comment: { type: Type.STRING },
       usedVocabulary: { type: Type.ARRAY, items: { type: Type.STRING } },
       suggestions: { type: Type.ARRAY, items: { type: Type.STRING } },
@@ -250,7 +297,7 @@ export const analyzeDraft = async (topic: string, dimension: string, draft: stri
 
   const vocabList = vocabulary.map(v => v.word).join(', ');
   const systemPrompt = "You are a CET-4/6 writing coach helping Chinese students. You MUST write the comment and suggestions fields in Chinese (中文) to help students understand your feedback. The polishedVersion field should remain in English as it is a model English paragraph.";
-  const userPrompt = `Topic: ${topic}\nDimension: ${dimension}\nDraft: "${draft}"\nTarget Vocab: ${vocabList}\nAnalyze the draft.\n\nIMPORTANT: The "comment" field MUST be in Chinese (中文), giving specific feedback on grammar, content, and vocabulary usage. The "suggestions" array MUST contain Chinese suggestions (中文建议) telling the student how to improve. The "polishedVersion" should be a polished English paragraph.`;
+  const userPrompt = `Topic: ${topic}\nDimension: ${dimension}\nDraft: "${draft}"\nTarget Vocab: ${vocabList}\nAnalyze the draft.\n\nSCORING RULE: The "score" field MUST be an integer from 0 to 10. Do NOT use any other scale (not 100-point, not percentage). Examples: 3, 5, 7, 8.\n\nIMPORTANT: The "comment" field MUST be in Chinese (中文), giving specific feedback on grammar, content, and vocabulary usage. The "suggestions" array MUST contain Chinese suggestions (中文建议) telling the student how to improve. The "polishedVersion" should be a polished English paragraph.`;
   
   const res = await callAI(systemPrompt, userPrompt, schema);
   return JSON.parse(res);

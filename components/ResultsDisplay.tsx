@@ -9,6 +9,7 @@ interface ResultsDisplayProps {
   data: ScaffoldContent;
   topic: string;
   socraticQuestion?: string; // New: Pass context from step 1
+  thinkingExpansion?: string[]; // 思路拓展：从 Step 1 带过来的论述角度
   onBack: () => void;
   isHistoryView?: boolean;
   initialDraft?: string;          // 从已保存草稿恢复
@@ -23,7 +24,7 @@ const getUsageBadge = (count: number) => {
   return { label: '🌱 初级探索者 (Novice Explorer)', color: 'bg-slate-100 text-slate-500 border-slate-200', bg: 'bg-slate-50' };
 };
 
-const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ data, topic, socraticQuestion, onBack, isHistoryView = false, initialDraft = '', onDraftChange }) => {
+const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ data, topic, socraticQuestion, thinkingExpansion, onBack, isHistoryView = false, initialDraft = '', onDraftChange }) => {
   // Local state for collocations to support "Load More"
   const [collocations, setCollocations] = useState<CollocationItem[]>(data.collocations);
   const [isLoadingMoreCols, setIsLoadingMoreCols] = useState(false);
@@ -204,22 +205,11 @@ ${data.frames.map(f => `[${f.patternName}] ${f.patternNameZh}\nTemplate: ${f.tem
              <div className="hidden md:block w-px h-12 bg-slate-200 mx-2"></div>
              
              <div className="flex-1 space-y-2">
-                {/* Socratic Context */}
-                {socraticQuestion && (
-                  <div className="flex gap-2">
-                    <span className="text-lg">🤔</span>
-                    <div>
-                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Coach's Question</span>
-                      <p className="text-slate-600 font-medium italic">"{socraticQuestion}"</p>
-                    </div>
-                  </div>
-                )}
-                
                 {/* User Idea */}
                 <div className="flex gap-2">
                    <span className="text-lg">💡</span>
                    <div>
-                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Your Idea</span>
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Your Idea / 你的观点</span>
                       <p className="text-slate-600">"{data.userIdea}"</p>
                    </div>
                 </div>
@@ -250,6 +240,11 @@ ${data.frames.map(f => `[${f.patternName}] ${f.patternNameZh}\nTemplate: ${f.tem
            </button>
         </div>
       </div>
+
+      {/* 1.5 Writing Direction Reference Card (from Step 1 thinking expansion) */}
+      {thinkingExpansion && thinkingExpansion.length > 0 && (
+        <WritingDirectionCard thinkingExpansion={thinkingExpansion} userIdea={data.userIdea} />
+      )}
 
       {/* 2. Split Layout: Scaffolds (Left) + Sticky Sandbox (Right) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
@@ -518,6 +513,56 @@ ${data.frames.map(f => `[${f.patternName}] ${f.patternNameZh}\nTemplate: ${f.tem
         <DimensionDictionary currentTopic={topic} />
       </div>
 
+    </div>
+  );
+};
+
+// Sub-component: Writing Direction Reference Card (carried from Step 1)
+const WritingDirectionCard: React.FC<{ thinkingExpansion: string[]; userIdea: string }> = ({ thinkingExpansion, userIdea }) => {
+  const [isExpanded, setIsExpanded] = useState(true);
+
+  return (
+    <div className="bg-white rounded-xl border border-amber-200/70 shadow-sm overflow-hidden">
+      {/* Clickable Header */}
+      <div 
+        onClick={() => setIsExpanded(!isExpanded)}
+        className="px-5 py-3 flex items-center gap-3 bg-amber-50/50 cursor-pointer hover:bg-amber-50 transition-colors select-none"
+      >
+        <span className="text-lg">📌</span>
+        <div className="flex-1">
+          <span className="text-sm font-bold text-amber-800">你的写作方向</span>
+          <span className="text-[10px] text-amber-500 ml-2">
+            {isExpanded ? '（点击折叠）' : '（点击展开）'}
+          </span>
+        </div>
+        <span className={`text-amber-400 transform transition-transform duration-200 text-xs ${isExpanded ? 'rotate-180' : 'rotate-0'}`}>
+          ▼
+        </span>
+      </div>
+
+      {/* Expandable Body */}
+      {isExpanded && (
+        <div className="px-5 py-3 border-t border-amber-100/60 space-y-3 animate-fade-in-up">
+          {/* Thinking Expansion Points */}
+          <div>
+            <span className="text-[10px] font-bold text-amber-600 uppercase tracking-wider flex items-center gap-1 mb-2">
+              💡 可以展开的角度
+            </span>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+              {thinkingExpansion.map((point, i) => (
+                <div key={i} className="flex items-start gap-2 text-xs text-amber-900/80 leading-relaxed bg-amber-50/50 rounded-lg px-3 py-2 border border-amber-100/50">
+                  <span className="text-amber-500 mt-0.5 flex-shrink-0 font-bold">{i + 1}.</span>
+                  <span>{point}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <p className="text-[10px] text-amber-500 italic">
+            提示：选择 1-2 个角度作为你段落的论据，结合下方语言工具来表达。
+          </p>
+        </div>
+      )}
     </div>
   );
 };

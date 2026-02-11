@@ -25,6 +25,7 @@ export interface InspirationCard {
   socraticQuestion: string;
   hint: string;
   keywords: { en: string; zh: string }[]; // Updated: Supports EN/ZH pair
+  thinkingExpansion: string[]; // 思路拓展：该维度下 3-4 个具体论述角度（中文）
 }
 
 // Phase 2: Scaffolding

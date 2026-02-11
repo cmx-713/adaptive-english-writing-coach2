@@ -12,6 +12,7 @@ interface PhaseOneCardsProps {
   isLoading: boolean;
   dimensionDrafts: Record<string, DimensionDraft>;  // 各维度草稿
   onAssembleEssay: () => void;                       // 组合成文回调
+  onPersonalizedExpansion?: (cardId: string, expansion: string[]) => void; // 个性化拓展回调
 }
 
 const PhaseOneCards: React.FC<PhaseOneCardsProps> = ({ 
@@ -22,7 +23,8 @@ const PhaseOneCards: React.FC<PhaseOneCardsProps> = ({
   onSelect, 
   isLoading,
   dimensionDrafts,
-  onAssembleEssay
+  onAssembleEssay,
+  onPersonalizedExpansion
 }) => {
   // Track revealed cards: Set<cardId>
   const [revealedIds, setRevealedIds] = useState<Set<string>>(() => {
@@ -91,6 +93,12 @@ const PhaseOneCards: React.FC<PhaseOneCardsProps> = ({
         setValidationResult(prev => ({ ...prev, [card.id]: result }));
         // Auto-expand validation when it first arrives
         setFeedbackExpanded(prev => ({ ...prev, [card.id]: true }));
+        // 只有观点有效（exceptional/valid）时，才将个性化拓展通知父组件用于语言支架页面
+        if (result.thinkingExpansion && result.thinkingExpansion.length > 0 && onPersonalizedExpansion) {
+          if (result.status === 'exceptional' || result.status === 'valid') {
+            onPersonalizedExpansion(card.id, result.thinkingExpansion);
+          }
+        }
     } catch (e) {
         console.error(e);
     } finally {
@@ -219,7 +227,8 @@ const PhaseOneCards: React.FC<PhaseOneCardsProps> = ({
         {cards.map((card) => {
           const isRevealed = revealedIds.has(card.id);
           const inputVal = inputs[card.id] || '';
-          const isSubmitting = isLoading && submittingId === card.id;
+          // 上方卡片不显示 loading 动画，loading 统一由底部卡片展示
+          const isSubmitting = false;
           
           // Conditions
           const canCheck = inputVal.trim().length > 1; // Min length to check
@@ -234,7 +243,7 @@ const PhaseOneCards: React.FC<PhaseOneCardsProps> = ({
                 ${isRevealed 
                   ? 'border-brand-400 shadow-lg scale-[1.02]' 
                   : 'border-slate-200 shadow-sm hover:border-brand-200'
-                } ${isLoading && !isSubmitting ? 'opacity-40 grayscale pointer-events-none' : ''}`}
+                } ${isLoading ? 'opacity-40 grayscale pointer-events-none' : ''}`}
             >
               {/* 1. Header: Dimension Name (Always Visible) */}
               <div className={`p-5 border-b border-slate-100 ${dimensionDrafts[card.id] ? 'bg-emerald-50/50' : 'bg-slate-50/50'}`}>
@@ -363,6 +372,58 @@ const PhaseOneCards: React.FC<PhaseOneCardsProps> = ({
                                 )}
                              </div>
 
+                             {/* Thinking Expansion: Two-layer design */}
+                             {(() => {
+                               // Layer 2（个性化）优先于 Layer 1（通用）
+                               const personalExpansion = validationResult[card.id]?.thinkingExpansion;
+                               const validationStatus = validationResult[card.id]?.status;
+                               const hasPersonalized = personalExpansion && personalExpansion.length > 0;
+                               const displayExpansion = hasPersonalized ? personalExpansion : card.thinkingExpansion;
+                               
+                               // 只有观点被认可（exceptional/valid）时才标记为"个性化"
+                               const isGenuinelyPersonalized = hasPersonalized && (validationStatus === 'exceptional' || validationStatus === 'valid');
+                               
+                               if (!displayExpansion || displayExpansion.length === 0) return null;
+
+                               return (
+                                 <div className={`mb-4 rounded-lg border overflow-hidden animate-fade-in-up ${
+                                   isGenuinelyPersonalized 
+                                     ? 'bg-teal-50/60 border-teal-200/60' 
+                                     : 'bg-amber-50/60 border-amber-200/60'
+                                 }`}>
+                                   <div className={`px-3 py-2 border-b flex items-center justify-between ${
+                                     isGenuinelyPersonalized 
+                                       ? 'bg-teal-100/40 border-teal-200/40' 
+                                       : 'bg-amber-100/40 border-amber-200/40'
+                                   }`}>
+                                     <span className={`text-xs font-bold flex items-center gap-1.5 ${
+                                       isGenuinelyPersonalized ? 'text-teal-700' : 'text-amber-700'
+                                     }`}>
+                                       <span>{isGenuinelyPersonalized ? '🎯' : '💡'}</span> 
+                                       {isGenuinelyPersonalized 
+                                         ? '思路拓展 — 基于你的观点深度拓展' 
+                                         : '思路拓展 — 参考方向，帮你找到切入点'}
+                                     </span>
+                                     {isGenuinelyPersonalized && (
+                                       <span className="text-[10px] bg-teal-200/60 text-teal-700 px-1.5 py-0.5 rounded-full font-bold">
+                                         个性化
+                                       </span>
+                                     )}
+                                   </div>
+                                   <ul className="px-3 py-2 space-y-1.5">
+                                     {displayExpansion.map((point, idx) => (
+                                       <li key={idx} className={`flex items-start gap-2 text-xs leading-relaxed ${
+                                         isGenuinelyPersonalized ? 'text-teal-900/80' : 'text-amber-900/80'
+                                       }`}>
+                                         <span className={`mt-0.5 flex-shrink-0 ${isGenuinelyPersonalized ? 'text-teal-500' : 'text-amber-500'}`}>•</span>
+                                         <span>{point}</span>
+                                       </li>
+                                     ))}
+                                   </ul>
+                                 </div>
+                               );
+                             })()}
+
                              {/* MAIN CALL TO ACTION: GET SCAFFOLDS */}
                              <button
                                 onClick={() => handleSubmit(card)}
@@ -436,8 +497,8 @@ const PhaseOneCards: React.FC<PhaseOneCardsProps> = ({
         return null;
       })()}
 
-      {/* Bottom Navigation / Action Bar (hidden during loading to avoid duplicate indicators) */}
-      <div className={`mt-12 pt-8 border-t border-slate-200 max-w-4xl mx-auto text-center ${isLoading ? 'hidden' : ''}`}>
+      {/* Bottom Navigation / Action Bar */}
+      <div className="mt-12 pt-8 border-t border-slate-200 max-w-4xl mx-auto text-center">
          <div className="mb-6">
             <h3 className="text-2xl font-serif font-bold text-slate-800">
               {Object.keys(dimensionDrafts).length > 0 ? '继续写作其他维度' : 'Ready for Step 2?'}

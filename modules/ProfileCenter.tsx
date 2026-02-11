@@ -41,14 +41,28 @@ const ScoreLineChart: React.FC<{ data: HistoryItem[] }> = ({ data }) => {
     );
   }
 
-  // Calculate coordinates
-  const points = data.map((item, index) => {
+  // Calculate coordinates (防御性：过滤掉无效数据)
+  const validData = data.filter(item => {
+    const d = item.data as EssayHistoryData;
+    return d?.result && typeof d.result.totalScore === 'number';
+  });
+
+  if (validData.length === 0) {
+    return (
+      <div className="w-full h-40 flex flex-col items-center justify-center text-slate-400 text-sm">
+         <span>📊 暂无有效数据</span>
+         <span className="text-xs mt-1">提交作文以追踪分数变化</span>
+      </div>
+    );
+  }
+
+  const points = validData.map((item, index) => {
     const score = (item.data as EssayHistoryData).result.totalScore;
     
     // X axis: Distributed evenly
-    const x = data.length === 1 
+    const x = validData.length === 1 
       ? width / 2 
-      : paddingX + (index * (width - 2 * paddingX)) / (data.length - 1);
+      : paddingX + (index * (width - 2 * paddingX)) / (validData.length - 1);
     
     // Y axis: 0-15 scale. Top is 0, Bottom is height.
     // 15 points = paddingY
@@ -234,7 +248,12 @@ const ProfileCenter: React.FC<ProfileCenterProps> = ({ isActive, onNavigate }) =
 
   const essayHistory = useMemo(() => {
     return historyItems
-        .filter(item => item.dataType === 'essay_grade')
+        .filter(item => {
+          if (item.dataType !== 'essay_grade') return false;
+          // 防御性检查：过滤掉数据不完整的记录，避免下游计算崩溃
+          const data = item.data as EssayHistoryData;
+          return data?.result && typeof data.result.totalScore === 'number' && data.result.subScores;
+        })
         .sort((a, b) => a.timestamp - b.timestamp);
   }, [historyItems]);
 

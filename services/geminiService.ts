@@ -21,20 +21,75 @@ export interface IdeaValidationResult {
   thinkingExpansion: string[]; // Layer 2: 基于用户观点的个性化思路拓展（中文）
 }
 
-const getApiConfig = (): { apiKey: string, model: string } => {
+// 将 Google Type schema 转为简化 JSON 示例字符串，帮助非 Google 模型理解输出结构
+const schemaToJsonExample = (schema: Schema, depth: number = 0): string => {
+  try {
+    const indent = '  '.repeat(depth);
+    const innerIndent = '  '.repeat(depth + 1);
+    
+    if (schema.type === Type.STRING) {
+      const desc = (schema as any).description ? ` // ${(schema as any).description}` : '';
+      const enumVals = (schema as any).enum;
+      if (enumVals) return `"one of: ${enumVals.join(' | ')}"${desc}`;
+      return `"string"${desc}`;
+    }
+    if (schema.type === Type.NUMBER) {
+      const desc = (schema as any).description ? ` // ${(schema as any).description}` : '';
+      return `0${desc}`;
+    }
+    if (schema.type === Type.BOOLEAN) return 'false';
+    if (schema.type === Type.ARRAY) {
+      const items = (schema as any).items;
+      if (items) {
+        const itemExample = schemaToJsonExample(items, depth + 1);
+        return `[\n${innerIndent}${itemExample}\n${indent}]`;
+      }
+      return '[]';
+    }
+    if (schema.type === Type.OBJECT) {
+      const props = (schema as any).properties;
+      if (!props) return '{}';
+      const entries = Object.entries(props).map(([key, val]) => {
+        const valStr = schemaToJsonExample(val as Schema, depth + 1);
+        return `${innerIndent}"${key}": ${valStr}`;
+      });
+      return `{\n${entries.join(',\n')}\n${indent}}`;
+    }
+    return '"unknown"';
+  } catch {
+    return '{}';
+  }
+};
+
+// 安全的 JSON 解析：如果失败，提供清晰的错误信息
+const safeJsonParse = (json: string, context: string = 'API'): any => {
+  try {
+    return JSON.parse(json);
+  } catch (e) {
+    console.error(`[${context}] JSON parse failed. Raw (first 500 chars):`, json.substring(0, 500));
+    throw new Error(`AI 返回的数据格式异常（${context}），请重试。如果使用自定义 API，请确认模型支持 JSON 输出格式。`);
+  }
+};
+
+const getFullApiConfig = (): ApiConfig => {
   const stored = localStorage.getItem('cet_api_config');
   if (stored) {
     try {
       const config = JSON.parse(stored) as ApiConfig;
-      if (config.apiKey) {
-        return { 
-          apiKey: config.apiKey, 
-          model: config.modelName || 'gemini-3-flash-preview' 
-        };
-      }
+      if (config.apiKey) return config;
     } catch (e) { console.error("Invalid config", e); }
   }
-  return { apiKey: process.env.API_KEY || '', model: 'gemini-3-flash-preview' };
+  return { 
+    provider: 'google', 
+    apiKey: process.env.API_KEY || '', 
+    modelName: 'gemini-3-flash-preview' 
+  };
+};
+
+// 向后兼容：部分代码仍使用此函数
+const getApiConfig = (): { apiKey: string, model: string } => {
+  const config = getFullApiConfig();
+  return { apiKey: config.apiKey, model: config.modelName || 'gemini-3-flash-preview' };
 };
 
 const getClient = () => {
@@ -43,15 +98,113 @@ const getClient = () => {
   return new GoogleGenAI({ apiKey });
 };
 
+// OpenAI 兼容接口调用（DeepSeek、Moonshot、Qwen、GLM、OpenAI、Custom）
+const callOpenAICompatible = async (
+  baseUrl: string,
+  apiKey: string,
+  model: string,
+  systemPrompt: string,
+  userPrompt: string,
+  options: { temperature?: number; jsonMode?: boolean } = {}
+): Promise<string> => {
+  const url = `${baseUrl.replace(/\/+$/, '')}/chat/completions`;
+  
+  const body: any = {
+    model,
+    messages: [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: userPrompt }
+    ],
+    temperature: options.temperature !== undefined ? options.temperature : 0.7,
+    top_p: 0.95,
+  };
+
+  // JSON 模式：大部分 OpenAI 兼容 API 都支持
+  if (options.jsonMode) {
+    body.response_format = { type: 'json_object' };
+  }
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`API Error (${response.status}): ${errorText}`);
+  }
+
+  const data = await response.json();
+  const content = data.choices?.[0]?.message?.content || "";
+  return cleanJsonResponse(content);
+};
+
+// 清理 AI 返回的 JSON：去除 markdown 代码块、前后多余文本
+const cleanJsonResponse = (text: string): string => {
+  let cleaned = text.trim();
+  
+  // 去除 markdown 代码块: ```json ... ``` 或 ``` ... ```
+  const codeBlockMatch = cleaned.match(/```(?:json)?\s*\n?([\s\S]*?)\n?```/);
+  if (codeBlockMatch) {
+    cleaned = codeBlockMatch[1].trim();
+  }
+  
+  // 如果开头不是 { 或 [，尝试找到第一个 JSON 起始位置
+  if (!cleaned.startsWith('{') && !cleaned.startsWith('[')) {
+    const jsonStart = cleaned.search(/[\[{]/);
+    if (jsonStart !== -1) {
+      cleaned = cleaned.substring(jsonStart);
+    }
+  }
+  
+  // 如果结尾不是 } 或 ]，截断到最后一个
+  if (!cleaned.endsWith('}') && !cleaned.endsWith(']')) {
+    const lastBrace = Math.max(cleaned.lastIndexOf('}'), cleaned.lastIndexOf(']'));
+    if (lastBrace !== -1) {
+      cleaned = cleaned.substring(0, lastBrace + 1);
+    }
+  }
+  
+  return cleaned;
+};
+
 const callAI = async(
   systemPrompt: string, 
   userPrompt: string, 
   responseSchema?: Schema,
   options: { temperature?: number } = {}
   ):Promise<string> => {
-  const { model } = getApiConfig();
+  const fullConfig = getFullApiConfig();
+  const isGoogle = fullConfig.provider === 'google';
+
+  // 非 Google 提供商：使用 OpenAI 兼容接口
+  if (!isGoogle && fullConfig.baseUrl) {
+    // 如果有 JSON schema 要求，在 prompt 中追加 JSON 格式说明 + Schema 结构
+    let enhancedSystemPrompt = systemPrompt;
+    if (responseSchema) {
+      const schemaDesc = schemaToJsonExample(responseSchema);
+      enhancedSystemPrompt += `\n\nIMPORTANT: You MUST respond with valid JSON only. No extra text, no markdown code fences, just pure JSON.\n\nRequired JSON structure:\n${schemaDesc}`;
+    }
+    
+    return callOpenAICompatible(
+      fullConfig.baseUrl,
+      fullConfig.apiKey,
+      fullConfig.modelName,
+      enhancedSystemPrompt,
+      userPrompt,
+      { 
+        temperature: options.temperature, 
+        jsonMode: !!responseSchema 
+      }
+    );
+  }
+
+  // Google 提供商：使用原生 SDK（支持 structured output / JSON schema）
   const ai = getClient();
-  
   const config: any = {
     temperature: options.temperature !== undefined ? options.temperature : 0.7,
     topK: 40,
@@ -64,14 +217,15 @@ const callAI = async(
   }
 
   const response = await ai.models.generateContent({
-    model: model,
+    model: fullConfig.modelName || 'gemini-3-flash-preview',
     config,
     contents: [
       { role: 'user', parts: [{ text: systemPrompt + "\n\n" + userPrompt }] }
     ]
   });
 
-  return response.text || "";
+  const text = response.text || "";
+  return responseSchema ? cleanJsonResponse(text) : text;
 };
 
 // --- Module 1: Socratic Coach Functions ---
@@ -125,7 +279,7 @@ Example for topic "科技对教育的影响" with dimension "Economic":
 Each point should be a complete、specific argument (not vague), 15-30 Chinese characters, helping students think deeper about this dimension.`;
   
   const res = await callAI(systemPrompt, userPrompt, schema);
-  return JSON.parse(res);
+  return safeJsonParse(res, 'fetchInspirationCards');
 };
 
 export const validateIdea = async (topic: string, dimension: string, idea: string): Promise<IdeaValidationResult> => {
@@ -170,7 +324,7 @@ Bad thinkingExpansion (too generic): [
 ]`;
   
   const res = await callAI(systemPrompt, userPrompt, schema);
-  return JSON.parse(res);
+  return safeJsonParse(res, 'validateIdea');
 };
 
 export const fetchLanguageScaffolds = async (topic: string, dimension: string, userIdea: string): Promise<ScaffoldContent> => {
@@ -224,7 +378,7 @@ export const fetchLanguageScaffolds = async (topic: string, dimension: string, u
   const userPrompt = `Topic: ${topic}\nDimension: ${dimension}\nStudent Idea: ${userIdea}\nGenerate scaffolds.\n\nIMPORTANT for the "frames" field: Generate 3 sentence frames. Each frame must include:\n- "patternName": the English sentence pattern name (e.g., "Not only...but also...")\n- "patternNameZh": Chinese translation of the pattern (e.g., "不仅……而且还……")\n- "template": a sentence template where blanks are marked by brackets containing CHINESE hints.\n- "modelSentence": a complete, well-written reference sentence that fills all the blanks perfectly.\n\nCRITICAL RULE for "template": The text inside square brackets [] MUST be in Chinese (中文), NOT English. These hints tell the student what concept to express in each blank.\n\nCORRECT example: "Not only do these activities [培养什么能力], but they also equip students with [什么样的技能] necessary to [达成什么目标]."\nWRONG example: "Not only do these activities [what ability to cultivate], but they also equip students with [what kind of skills] necessary to [what goal to achieve]."\n\nThe hints MUST be short Chinese phrases (2-6 Chinese characters) describing what to fill in.`;
   
   const res = await callAI(systemPrompt, userPrompt, schema);
-  return JSON.parse(res);
+  return safeJsonParse(res, 'fetchScaffolds');
 };
 
 export const fetchDimensionKeywords = async (dimension: string, topic?: string): Promise<{en: string, zh: string}[]> => {
@@ -244,7 +398,7 @@ export const fetchDimensionKeywords = async (dimension: string, topic?: string):
   const userPrompt = `Dimension: ${dimension}\nTopic: ${topic || 'General'}\nGenerate 8 relevant keywords.`;
   
   const res = await callAI(systemPrompt, userPrompt, schema);
-  return JSON.parse(res);
+  return safeJsonParse(res, 'fetchDimensionKeywords');
 };
 
 export const validateSentence = async (sentence: string, topic: string): Promise<{ isValid: boolean, feedback: string, suggestion: string }> => {
@@ -262,7 +416,7 @@ export const validateSentence = async (sentence: string, topic: string): Promise
   const userPrompt = `Topic: "${topic}"\nStudent's sentence: "${sentence}"\n\nEvaluate this sentence and provide:\n- "isValid": true if the sentence is grammatically correct and makes sense, false otherwise.\n- "feedback": 用中文给出具体反馈，指出语法是否正确、表达是否地道、内容是否切题。如果有错误，明确指出哪里有问题。(2-3句话)\n- "suggestion": 用中文给出一条改进建议，告诉学生如何让表达更好。如果已经很好，给出一个更高级的替代表达。(1句话)`;
   
   const res = await callAI(systemPrompt, userPrompt, schema);
-  return JSON.parse(res);
+  return safeJsonParse(res, 'validateSentence');
 };
 
 export const fetchMoreCollocations = async (topic: string, dimension: string, userIdea: string): Promise<CollocationItem[]> => {
@@ -279,7 +433,7 @@ export const fetchMoreCollocations = async (topic: string, dimension: string, us
   };
   
   const res = await callAI("Writing assistant", `Generate 6 more advanced collocations for Idea: ${userIdea} (Topic: ${topic})`, schema);
-  return JSON.parse(res);
+  return safeJsonParse(res, 'fetchMoreCollocations');
 };
 
 export const analyzeDraft = async (topic: string, dimension: string, draft: string, vocabulary: VocabularyItem[]): Promise<DraftFeedback> => {
@@ -300,7 +454,7 @@ export const analyzeDraft = async (topic: string, dimension: string, draft: stri
   const userPrompt = `Topic: ${topic}\nDimension: ${dimension}\nDraft: "${draft}"\nTarget Vocab: ${vocabList}\nAnalyze the draft.\n\nSCORING RULE: The "score" field MUST be an integer from 0 to 10. Do NOT use any other scale (not 100-point, not percentage). Examples: 3, 5, 7, 8.\n\nIMPORTANT: The "comment" field MUST be in Chinese (中文), giving specific feedback on grammar, content, and vocabulary usage. The "suggestions" array MUST contain Chinese suggestions (中文建议) telling the student how to improve. The "polishedVersion" should be a polished English paragraph.`;
   
   const res = await callAI(systemPrompt, userPrompt, schema);
-  return JSON.parse(res);
+  return safeJsonParse(res, 'analyzeDraft');
 };
 
 // --- Essay Assembly: Generate Introduction and Conclusion ---
@@ -324,7 +478,7 @@ export const generateEssayIntroConclusion = async (
   const userPrompt = `Topic: "${topic}"\n\nThe student has written the following body paragraphs:\n\n${bodyText}\n\nGenerate:\n- "introduction": An opening paragraph that introduces the topic and previews the main points. Match the student's writing level.\n- "conclusion": A closing paragraph that summarizes the key arguments and provides a final thought. Match the student's writing level.\n\nBoth paragraphs should be in English, concise, and appropriate for CET-4/6 level.`;
 
   const res = await callAI(systemPrompt, userPrompt, schema);
-  return JSON.parse(res);
+  return safeJsonParse(res, 'generateIntroConclusion');
 };
 
 // --- Module 2: Essay Grader ---
@@ -402,29 +556,65 @@ export const gradeEssay = async (topic: string, essayText: string): Promise<Essa
   
   
 
-  SCORING CALIBRATION (CRITICAL FOR ACCURACY):
-  Do NOT grade harshly. You must simulate a standard CET-4/6 exam distribution where most students pass.
-  - 12-15 (Excellent): Clear, coherent, varied vocabulary, minor errors only.
-  - 9-11 (Good): Generally clear, some logic gaps, visible grammar errors but message is conveyed.
-  - 6-8 (Pass/Average): Understandable but with frequent Chinglish/grammar errors. Basic structure exists.
-  - 3-5 (Poor): Hard to understand, significant logic failures, or very short.
-  - 0-2 (Fail): Off-topic, gibberish, or almost empty.
-  *Rule:* If the essay is understandable, the score MUST be above 6.
+  SCORING CALIBRATION (CRITICAL — READ CAREFULLY BEFORE SCORING):
+  
+  You are simulating a real CET-4/6 human grader. Human graders are generally LENIENT and reward effort.
+  
+  BAND DESCRIPTORS (use these as your PRIMARY scoring reference):
+  - 14-15 (Outstanding): Well-structured, clear thesis, varied vocabulary (e.g., "paramount", "safeguard"), mostly correct grammar, coherent logic. Minor errors do NOT prevent this score.
+  - 12-13 (Excellent): Clear structure (intro/body/conclusion), good vocabulary range, some grammar errors but they don't impede understanding. Logical flow is mostly smooth.
+  - 10-11 (Good): Adequate structure, reasonable vocabulary, noticeable grammar errors but main ideas are clearly communicated. Some Chinglish is acceptable at this level.
+  - 7-9 (Average): Basic structure exists, limited vocabulary, frequent grammar errors, but the essay is on-topic and understandable.
+  - 4-6 (Below Average): Poor structure, very limited vocabulary, many errors that impede understanding.
+  - 0-3 (Fail): Off-topic, mostly unintelligible, or extremely short (<30 words).
 
-  FORCED DISTRIBUTION RULES:
-  - If the essay is readable and on-topic, the Total Score MUST be at least 6.0.
-  - Do NOT give scores below 6 unless the essay is gibberish or empty.
-  - A typical essay with grammar errors usually gets 7-9 points.
-  - A good essay gets 10-12 points.
-  - An excellent essay gets 13-15 points.
-  *Internal Logic:* Start with a base score of 15. Deduct points only for severe impediments to understanding, NOT for every minor grammar mistake.
+  MANDATORY SCORING PROCESS — You MUST follow these steps:
+  Step A: Read the essay holistically. Ask: "Can I understand the main point?" If YES → score MUST be ≥ 7.
+  Step B: Check structure. Does it have intro + body + conclusion? If YES → add at least 2 points above minimum.
+  Step C: Check vocabulary. Does it use topic-appropriate academic words (e.g., "paramount", "crucial", "facilitate")? If YES → Proficiency sub-score should be ≥ 3.
+  Step D: Check logic. Are paragraphs logically connected? If YES → Organization sub-score should be ≥ 2.
+  
+  ANTI-DEFLATION RULES (CRITICAL):
+  - If the essay has clear structure + topic-relevant vocabulary + coherent arguments → Total Score MUST be ≥ 12.
+  - If the essay uses advanced vocabulary correctly (e.g., "paramount importance", "robust measures", "digital literacy") → Proficiency MUST be ≥ 4.
+  - Do NOT deduct more than 1 point for minor grammar issues (article errors, preposition choice) that don't impede understanding.
+  - Distinguish between ERROR (wrong grammar) and STYLE (could be expressed better). Only errors affect the score; style issues go in critiques only.
+  
+  SELF-CHECK (Do this BEFORE outputting the score):
+  Ask yourself: "Would a human CET-4/6 grader give this score?" If your score seems lower than what a typical teacher would give, RAISE IT by 2-3 points.
 
-  IMPORTANT RULE: - Do NOT assign a score below 5 unless the essay is completely unintelligible. 
-  - A typical student essay with many grammar mistakes should usually fall in the 6-9 range.
-  - Distinction: Be a "Grammar Detective" for the *Critiques* section (find all errors), but be a "Fair Examiner" for the *Score* (reward communicative effort).
+  Distinction: Be a "Grammar Detective" for the *Critiques* section (find ALL errors), but be a "Fair Examiner" for the *Score* (reward communicative effort and vocabulary range).
 
   STRICT SCORING RUBRIC (Max 15 Points):
   - Content (0-4), Organization (0-3), Proficiency (0-5), Clarity (0-3). Sum must equal totalScore.
+
+  DETERMINISTIC SCORING PROTOCOL (Follow EXACTLY to ensure consistency):
+  For each sub-score, apply these binary checklist rules:
+  
+  Content (0-4):
+  - +1: Essay is on-topic
+  - +1: Has at least 2 distinct supporting points/arguments
+  - +1: Points are developed with examples or reasoning (not just listed)
+  - +1: Shows depth of thinking or original insight
+  
+  Organization (0-3):
+  - +1: Has identifiable intro, body, and conclusion
+  - +1: Paragraphs have clear topic sentences
+  - +1: Uses transitions/connectors between ideas (e.g., "Moreover", "In conclusion")
+  
+  Proficiency (0-5):
+  - +1: Uses complete sentences (no fragments)
+  - +1: Subject-verb agreement is mostly correct
+  - +1: Uses topic-specific vocabulary (not just basic words)
+  - +1: Uses advanced structures (passive voice, complex sentences, etc.)
+  - +1: Vocabulary is varied (no excessive repetition of the same words)
+  
+  Clarity (0-3):
+  - +1: Main argument is understandable on first read
+  - +1: Each paragraph focuses on one main idea
+  - +1: Sentence meaning is unambiguous throughout
+  
+  Simply COUNT the checkmarks for each dimension. This removes subjectivity.
 
   EXECUTION PROTOCOL (Must follow strictly in order):
 
@@ -471,13 +661,29 @@ export const gradeEssay = async (topic: string, essayText: string): Promise<Essa
   const step1UserPrompt = `Topic: ${topic || 'General Essay'}\nEssay: "${essayText}"`;
   
   const step1Json = await callAI(step1SystemPrompt, step1UserPrompt, step1Schema, { temperature: 0.1 });
-  const step1Data = JSON.parse(step1Json);
+  
+  let step1Data: any;
+  try {
+    step1Data = JSON.parse(step1Json);
+  } catch (parseError) {
+    console.error('Step 1 JSON parse failed. Raw response:', step1Json.substring(0, 500));
+    throw new Error('AI 返回的评分数据格式异常，请重试。如果使用自定义 API，请确认模型支持 JSON 输出。');
+  }
+
+  // 数据校验：确保关键字段存在，提供默认值
+  step1Data.totalScore = typeof step1Data.totalScore === 'number' ? step1Data.totalScore : 0;
+  step1Data.subScores = step1Data.subScores || { content: 0, organization: 0, proficiency: 0, clarity: 0 };
+  step1Data.generalComment = step1Data.generalComment || '暂无评语';
+  step1Data.issueOverview = step1Data.issueOverview || { critical: [], general: [], minor: [] };
+  step1Data.critiques = Array.isArray(step1Data.critiques) ? step1Data.critiques : [];
+  step1Data.contrastiveLearning = Array.isArray(step1Data.contrastiveLearning) ? step1Data.contrastiveLearning : [];
+  step1Data.polishedEssay = step1Data.polishedEssay || essayText;
 
   // Prepare context for Step 2
   const contrastiveContext = step1Data.contrastiveLearning
-    .map((c: ContrastivePoint, i: number) => `Point ${i + 1} (${c.category}): User wrote "${c.userContent}" -> Polished to "${c.polishedContent}". Analysis: ${c.analysis}`)
+    .map((c: ContrastivePoint, i: number) => `Point ${i + 1} (${c.category || 'General'}): User wrote "${c.userContent || ''}" -> Polished to "${c.polishedContent || ''}". Analysis: ${c.analysis || ''}`)
     .join('\n');
-  const polishedWordsContext = step1Data.polishedEssay.substring(0, 1000); // Truncate if too long
+  const polishedWordsContext = (step1Data.polishedEssay || '').substring(0, 1000);
 
   // 5. CALL STEP 2: Retraining Generation (INTEGRATED LEARNING)
   const step2SystemPrompt = `
@@ -569,10 +775,23 @@ export const gradeEssay = async (topic: string, essayText: string): Promise<Essa
   };
 
   const step2Json = await callAI(step2SystemPrompt, "Generate Integrated Retraining Exercises.", step2Schema, { temperature: 0.3 });
-  const step2Data = JSON.parse(step2Json);
+  
+  let step2Data: any;
+  try {
+    step2Data = JSON.parse(step2Json);
+  } catch (parseError) {
+    console.error('Step 2 JSON parse failed. Raw response:', step2Json.substring(0, 500));
+    // Step 2 失败不应阻断整个批改流程，返回空的 retraining
+    step2Data = { retraining: { exercises: [], materials: [] } };
+  }
+
+  // 确保 retraining 结构完整
+  const retraining = step2Data.retraining || { exercises: [], materials: [] };
+  retraining.exercises = Array.isArray(retraining.exercises) ? retraining.exercises : [];
+  retraining.materials = Array.isArray(retraining.materials) ? retraining.materials : [];
 
   // 6. Merge and Return
-  return { ...step1Data, retraining: step2Data.retraining };
+  return { ...step1Data, retraining };
 };
 
 // --- Module 3: Sentence Drills ---
@@ -613,7 +832,7 @@ export const fetchDrillItems = async (topic: string, mode: DrillMode, context: A
   1. The \`explanation\` field MUST be in SIMPLIFIED CHINESE (简体中文) to help students understand the logic.
   2. Keep \`questionContext\`, \`highlightText\`, and \`options\` in English.`;
   const res = await callAI("Drill generator", userPrompt, schema);
-  return JSON.parse(res);
+  return safeJsonParse(res, 'fetchDrillItems');
 };
 
 // services/geminiService.ts
@@ -647,5 +866,5 @@ export const evaluateRetrainingAttempt = async (
   Feedback must be in SIMPLIFIED CHINESE, brief (1 sentence), addressing the strategy application.`;
 
   const res = await callAI(systemPrompt, "Evaluate Answer", schema);
-  return JSON.parse(res);
+  return safeJsonParse(res, 'evaluateRetrainingAttempt');
 };

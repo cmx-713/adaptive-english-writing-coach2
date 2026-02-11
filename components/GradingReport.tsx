@@ -377,16 +377,16 @@ const StructuredEssayRenderer: React.FC<{
   };
 
   const renderTextWithHighlights = (text: string) => {
-    // New Logic: Split by <highlight id='x'>...</highlight> tags
-    // The regex captures the full tag and content: <highlight id='1'>content</highlight>
-    const highlightSplitRegex = /(<highlight id='\d+'>[\s\S]*?<\/highlight>)/g;
+    // Split by <highlight id='x'>...</highlight> or <highlight id="x">...</highlight> tags
+    // Support both single and double quotes for robustness
+    const highlightSplitRegex = /(<highlight id=['"]?\d+['"]?>[\s\S]*?<\/highlight>)/g;
     const textParts = text.split(highlightSplitRegex);
 
     return (
       <span className="whitespace-pre-wrap">
         {textParts.map((part, i) => {
-          // Check if this part is a highlight tag
-          const match = part.match(/<highlight id='(\d+)'>([\s\S]*?)<\/highlight>/);
+          // Check if this part is a highlight tag (support both quote types)
+          const match = part.match(/<highlight id=['"]?(\d+)['"]?>([\s\S]*?)<\/highlight>/);
           
           if (match) {
              const id = parseInt(match[1]);
@@ -446,7 +446,7 @@ const StructuredEssayRenderer: React.FC<{
 type ResultTab = 'overview' | 'critiques' | 'contrast' | 'practice';
 
 const GradingReport: React.FC<GradingReportProps> = ({ 
-  result, 
+  result: rawResult, 
   essayText, 
   topic, 
   onBack, 
@@ -454,6 +454,26 @@ const GradingReport: React.FC<GradingReportProps> = ({
   isSaved = false,
   isHistoryView = false
 }) => {
+  // 防御性数据处理：确保所有字段都有安全默认值，防止白屏崩溃
+  const result = useMemo(() => {
+    const r = rawResult || {} as any;
+    return {
+      ...r,
+      totalScore: typeof r.totalScore === 'number' ? r.totalScore : 0,
+      subScores: r.subScores || { content: 0, organization: 0, proficiency: 0, clarity: 0 },
+      modelSubScores: r.modelSubScores,
+      generalComment: r.generalComment || '暂无评语',
+      issueOverview: r.issueOverview || { critical: [], general: [], minor: [] },
+      critiques: Array.isArray(r.critiques) ? r.critiques : [],
+      contrastiveLearning: Array.isArray(r.contrastiveLearning) ? r.contrastiveLearning : [],
+      polishedEssay: r.polishedEssay || essayText || '',
+      retraining: {
+        exercises: Array.isArray(r.retraining?.exercises) ? r.retraining.exercises : [],
+        materials: Array.isArray(r.retraining?.materials) ? r.retraining.materials : [],
+      },
+    };
+  }, [rawResult, essayText]);
+
   const [activeTab, setActiveTab] = useState<ResultTab>('overview');
   const [copyStatus, setCopyStatus] = useState<'idle' | 'copied'>('idle');
   const [isEvaluating, setIsEvaluating] = useState(false);
@@ -466,6 +486,7 @@ const GradingReport: React.FC<GradingReportProps> = ({
   const [hintVisible, setHintVisible] = useState(false);
 
   const [activeContrastIndex, setActiveContrastIndex] = useState<number | null>(null);
+  const essayScrollRef = useRef<HTMLDivElement>(null); // 右侧范文滚动容器 ref
   const [isNavVisible, setIsNavVisible] = useState(true);
   const lastScrollY = useRef(0);
 
@@ -496,17 +517,53 @@ const GradingReport: React.FC<GradingReportProps> = ({
     }
   }, [activeTab]);
 
-  useEffect(() => {
-    if (activeTab === 'contrast' && activeContrastIndex !== null) {
-       const el = document.getElementById(`highlight-${activeContrastIndex}`);
-       if (el) {
-          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-       }
-    }
-  }, [activeContrastIndex, activeTab]);
+  // 滚动到右侧范文对应高亮位置（优先文本匹配，id 作为兜底）
+  const scrollToHighlight = (index: number, polishedContent?: string) => {
+    requestAnimationFrame(() => {
+      setTimeout(() => {
+        const container = essayScrollRef.current;
+        if (!container) return;
+
+        const scrollToElement = (el: Element) => {
+          const containerRect = container.getBoundingClientRect();
+          const elRect = el.getBoundingClientRect();
+          const targetScrollTop = container.scrollTop + (elRect.top - containerRect.top) - (containerRect.height / 2) + (elRect.height / 2);
+          container.scrollTo({ top: Math.max(0, targetScrollTop), behavior: 'smooth' });
+        };
+
+        // 策略 1：用 polishedContent 文本在范文 DOM 中搜索匹配（最可靠）
+        if (polishedContent) {
+          // 去掉 polishedContent 中可能存在的 highlight 标签，取前 40 个字符作为搜索关键词
+          const cleanText = polishedContent.replace(/<\/?highlight[^>]*>/g, '').trim();
+          const searchKey = cleanText.substring(0, 40);
+          
+          if (searchKey.length > 5) {
+            // 遍历范文容器中所有文本 span，找到包含搜索关键词的元素
+            const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, null);
+            let node: Text | null;
+            while ((node = walker.nextNode() as Text | null)) {
+              if (node.textContent && node.textContent.includes(searchKey)) {
+                const parentEl = node.parentElement;
+                if (parentEl) {
+                  scrollToElement(parentEl);
+                  return;
+                }
+              }
+            }
+          }
+        }
+
+        // 策略 2：兜底 — 使用 highlight-id 元素
+        const el = document.getElementById(`highlight-${index}`);
+        if (el && container.contains(el)) {
+          scrollToElement(el);
+        }
+      }, 100);
+    });
+  };
 
   const getCritiquesByCategory = (category: CritiqueCategory) => {
-    return result?.critiques.filter(c => c.category === category) || [];
+    return (result?.critiques || []).filter(c => c.category === category);
   };
 
   const handleCopyMaterials = (materials: KeyMaterial[]) => {
@@ -664,7 +721,7 @@ const GradingReport: React.FC<GradingReportProps> = ({
                     minor: { color: 'emerald', icon: '🟢', label: '轻微问题' }
                   }[severity as 'critical' | 'general' | 'minor'];
                   
-                  const issues = result.issueOverview[severity as 'critical' | 'general' | 'minor'];
+                  const issues = result.issueOverview?.[severity as 'critical' | 'general' | 'minor'] || [];
                   
                   return (
                     <div key={severity} className={`bg-white rounded-xl border border-${config.color}-100 shadow-sm p-5 border-t-4 border-t-${config.color}-500`}>
@@ -735,7 +792,10 @@ const GradingReport: React.FC<GradingReportProps> = ({
                     return (
                       <div 
                         key={i}
-                        onClick={() => setActiveContrastIndex(i)}
+                        onClick={() => {
+                          setActiveContrastIndex(i);
+                          scrollToHighlight(i, pt.polishedContent);
+                        }}
                         className={`rounded-xl border transition-all cursor-pointer relative overflow-hidden
                           ${isActive 
                             ? `bg-white ring-2 ring-indigo-500 shadow-md transform scale-[1.02]` 
@@ -806,7 +866,7 @@ const GradingReport: React.FC<GradingReportProps> = ({
                    </button>
                 </div>
                 
-                <div className="overflow-y-auto custom-scrollbar p-8 bg-slate-50/30">
+                <div ref={essayScrollRef} className="overflow-y-auto custom-scrollbar p-8 bg-slate-50/30">
                    <StructuredEssayRenderer 
                       fullEssay={result.polishedEssay} 
                       contrastPoints={result.contrastiveLearning} 

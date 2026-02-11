@@ -247,6 +247,20 @@ const EssayGrader: React.FC<EssayGraderProps> = ({ prefillData, onPrefillConsume
                   <>✨ 提交批改 (Submit for Review)</>
                 )}
               </button>
+
+              {/* 错误提示 */}
+              {error && (
+                <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-xl text-red-700">
+                  <div className="flex items-start gap-3">
+                    <span className="text-red-500 text-xl flex-shrink-0">⚠️</span>
+                    <div>
+                      <p className="font-bold text-sm mb-1">批改失败</p>
+                      <p className="text-sm">{error}</p>
+                      <p className="text-xs text-red-400 mt-2">请检查 API 设置是否正确，或稍后重试。</p>
+                    </div>
+                  </div>
+                </div>
+              )}
            </div>
            
            <div className="bg-slate-50 p-4 text-center text-xs text-slate-400 border-t border-slate-100">

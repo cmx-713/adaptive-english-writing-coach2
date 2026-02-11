@@ -117,6 +117,7 @@ const callOpenAICompatible = async (
     ],
     temperature: options.temperature !== undefined ? options.temperature : 0.7,
     top_p: 0.95,
+    max_tokens: 8192, // 防止复杂响应被截断（DeepSeek 默认仅 4096）
   };
 
   // JSON 模式：大部分 OpenAI 兼容 API 都支持
@@ -135,15 +136,28 @@ const callOpenAICompatible = async (
 
   if (!response.ok) {
     const errorText = await response.text();
-    throw new Error(`API Error (${response.status}): ${errorText}`);
+    throw new Error(`API 请求失败 (${response.status}): ${errorText.substring(0, 200)}`);
   }
 
   const data = await response.json();
+  
+  // 检测输出是否被截断
+  const finishReason = data.choices?.[0]?.finish_reason;
+  if (finishReason === 'length') {
+    console.warn('[callOpenAICompatible] Response truncated (finish_reason=length). Output may be incomplete.');
+  }
+  
   const content = data.choices?.[0]?.message?.content || "";
+  
+  if (!content) {
+    console.error('[callOpenAICompatible] Empty content. Full response:', JSON.stringify(data).substring(0, 500));
+    throw new Error('AI 返回了空内容。请检查 API Key 和模型名称是否正确。');
+  }
+  
   return cleanJsonResponse(content);
 };
 
-// 清理 AI 返回的 JSON：去除 markdown 代码块、前后多余文本
+// 清理 AI 返回的 JSON：去除 markdown 代码块、前后多余文本、修复截断
 const cleanJsonResponse = (text: string): string => {
   let cleaned = text.trim();
   
@@ -161,7 +175,7 @@ const cleanJsonResponse = (text: string): string => {
     }
   }
   
-  // 如果结尾不是 } 或 ]，截断到最后一个
+  // 如果结尾不是 } 或 ]，截断到最后一个完整闭合处
   if (!cleaned.endsWith('}') && !cleaned.endsWith(']')) {
     const lastBrace = Math.max(cleaned.lastIndexOf('}'), cleaned.lastIndexOf(']'));
     if (lastBrace !== -1) {
@@ -169,7 +183,61 @@ const cleanJsonResponse = (text: string): string => {
     }
   }
   
-  return cleaned;
+  // 尝试修复被截断的 JSON（补全未闭合的括号）
+  try {
+    JSON.parse(cleaned);
+    return cleaned; // 已经是合法 JSON，直接返回
+  } catch {
+    // JSON 不合法，尝试补全
+    return tryRepairTruncatedJson(cleaned);
+  }
+};
+
+// 尝试修复被截断的 JSON：关闭未闭合的字符串、数组、对象
+const tryRepairTruncatedJson = (text: string): string => {
+  let repaired = text;
+  
+  // 1. 如果截断在字符串中间（奇数个未转义引号），关闭字符串
+  let inString = false;
+  let lastCharBeforeEnd = '';
+  for (let i = 0; i < repaired.length; i++) {
+    const ch = repaired[i];
+    if (ch === '"' && lastCharBeforeEnd !== '\\') {
+      inString = !inString;
+    }
+    lastCharBeforeEnd = ch;
+  }
+  if (inString) {
+    repaired += '"';
+  }
+  
+  // 2. 去掉尾部不完整的 key-value（如 "key": 或 "key":  "val 截断）
+  //    找到最后一个完整的 value 结束位置
+  repaired = repaired.replace(/,\s*"[^"]*"\s*:\s*("[^"]*)?$/s, '');
+  repaired = repaired.replace(/,\s*$/s, '');
+  
+  // 3. 补全未闭合的 [] 和 {}
+  const stack: string[] = [];
+  let inStr = false;
+  let escape = false;
+  for (const ch of repaired) {
+    if (escape) { escape = false; continue; }
+    if (ch === '\\' && inStr) { escape = true; continue; }
+    if (ch === '"') { inStr = !inStr; continue; }
+    if (inStr) continue;
+    if (ch === '{') stack.push('}');
+    else if (ch === '[') stack.push(']');
+    else if (ch === '}' || ch === ']') {
+      if (stack.length > 0 && stack[stack.length - 1] === ch) stack.pop();
+    }
+  }
+  
+  // 按倒序关闭未闭合的括号
+  while (stack.length > 0) {
+    repaired += stack.pop();
+  }
+  
+  return repaired;
 };
 
 const callAI = async(
@@ -556,74 +624,99 @@ export const gradeEssay = async (topic: string, essayText: string): Promise<Essa
   
   
 
-  SCORING CALIBRATION (CRITICAL — READ CAREFULLY BEFORE SCORING):
-  
-  You are simulating a real CET-4/6 human grader. Human graders are generally LENIENT and reward effort.
-  
-  BAND DESCRIPTORS (use these as your PRIMARY scoring reference):
-  - 14-15 (Outstanding): Well-structured, clear thesis, varied vocabulary (e.g., "paramount", "safeguard"), mostly correct grammar, coherent logic. Minor errors do NOT prevent this score.
-  - 12-13 (Excellent): Clear structure (intro/body/conclusion), good vocabulary range, some grammar errors but they don't impede understanding. Logical flow is mostly smooth.
-  - 10-11 (Good): Adequate structure, reasonable vocabulary, noticeable grammar errors but main ideas are clearly communicated. Some Chinglish is acceptable at this level.
-  - 7-9 (Average): Basic structure exists, limited vocabulary, frequent grammar errors, but the essay is on-topic and understandable.
-  - 4-6 (Below Average): Poor structure, very limited vocabulary, many errors that impede understanding.
-  - 0-3 (Fail): Off-topic, mostly unintelligible, or extremely short (<30 words).
+  SCORING METHOD: 总体印象评分法 (Holistic Impression Scoring) — the OFFICIAL CET-4/6 method.
 
-  MANDATORY SCORING PROCESS — You MUST follow these steps:
-  Step A: Read the essay holistically. Ask: "Can I understand the main point?" If YES → score MUST be ≥ 7.
-  Step B: Check structure. Does it have intro + body + conclusion? If YES → add at least 2 points above minimum.
-  Step C: Check vocabulary. Does it use topic-appropriate academic words (e.g., "paramount", "crucial", "facilitate")? If YES → Proficiency sub-score should be ≥ 3.
-  Step D: Check logic. Are paragraphs logically connected? If YES → Organization sub-score should be ≥ 2.
-  
-  ANTI-DEFLATION RULES (CRITICAL):
-  - If the essay has clear structure + topic-relevant vocabulary + coherent arguments → Total Score MUST be ≥ 12.
-  - If the essay uses advanced vocabulary correctly (e.g., "paramount importance", "robust measures", "digital literacy") → Proficiency MUST be ≥ 4.
-  - Do NOT deduct more than 1 point for minor grammar issues (article errors, preposition choice) that don't impede understanding.
-  - Distinguish between ERROR (wrong grammar) and STYLE (could be expressed better). Only errors affect the score; style issues go in critiques only.
-  
-  SELF-CHECK (Do this BEFORE outputting the score):
-  Ask yourself: "Would a human CET-4/6 grader give this score?" If your score seems lower than what a typical teacher would give, RAISE IT by 2-3 points.
+  You MUST score in THREE steps. Do NOT skip any step.
 
-  Distinction: Be a "Grammar Detective" for the *Critiques* section (find ALL errors), but be a "Fair Examiner" for the *Score* (reward communicative effort and vocabulary range).
+  ===== STEP 1: 定档 (Determine the Band) =====
+  Read the essay holistically, then select EXACTLY ONE band based on these official CET-4/6 descriptors:
 
-  STRICT SCORING RUBRIC (Max 15 Points):
-  - Content (0-4), Organization (0-3), Proficiency (0-5), Clarity (0-3). Sum must equal totalScore.
+  【14分档 (13-15分)】
+  切题：完全符合题目要求，主题明确，内容紧扣主题。
+  表达：思想表达清晰，逻辑连贯，观点阐述充分。
+  语言：文字通顺，用词准确，语法错误极少，仅有个别拼写或标点小错。
 
-  DETERMINISTIC SCORING PROTOCOL (Follow EXACTLY to ensure consistency):
-  For each sub-score, apply these binary checklist rules:
-  
-  Content (0-4):
-  - +1: Essay is on-topic
-  - +1: Has at least 2 distinct supporting points/arguments
-  - +1: Points are developed with examples or reasoning (not just listed)
-  - +1: Shows depth of thinking or original insight
-  
-  Organization (0-3):
-  - +1: Has identifiable intro, body, and conclusion
-  - +1: Paragraphs have clear topic sentences
-  - +1: Uses transitions/connectors between ideas (e.g., "Moreover", "In conclusion")
-  
-  Proficiency (0-5):
-  - +1: Uses complete sentences (no fragments)
-  - +1: Subject-verb agreement is mostly correct
-  - +1: Uses topic-specific vocabulary (not just basic words)
-  - +1: Uses advanced structures (passive voice, complex sentences, etc.)
-  - +1: Vocabulary is varied (no excessive repetition of the same words)
-  
-  Clarity (0-3):
-  - +1: Main argument is understandable on first read
-  - +1: Each paragraph focuses on one main idea
-  - +1: Sentence meaning is unambiguous throughout
-  
-  Simply COUNT the checkmarks for each dimension. This removes subjectivity.
+  【11分档 (10-12分)】
+  切题：基本切题，能围绕主题展开，但可能在某些细节上不够深入。
+  表达：思想表达较清楚，文字连贯，但可能存在个别逻辑衔接不够自然的情况。
+  语言：有少量语言错误，如语法、词汇使用不当，但不影响整体理解。
+
+  【8分档 (7-9分)】
+  切题：基本切题，但部分段落或内容可能偏离主题，或对主题的挖掘不够深入。
+  表达：思想表达不够清晰，文字勉强连贯，存在一些逻辑跳跃或衔接不畅的问题。
+  语言：语言错误较多，包括语法、词汇、句式等方面，部分错误可能影响理解。
+
+  【5分档 (4-6分)】
+  切题：基本切题，但内容可能较为单薄，或对主题的理解存在偏差。
+  表达：思想表达不清楚，连贯性差，段落之间或句子之间的逻辑关系混乱。
+  语言：有较多严重语言错误，严重影响理解。
+
+  【2分档 (1-3分)】
+  条理不清，思路紊乱，语言支离破碎，大部分句子存在严重错误，几乎无法理解。
+
+  ===== STEP 2: 定分 (Fine-tune within the Band) =====
+  Within the chosen band's 3-point range (e.g., 10-12 for Band 11):
+  - Use the HIGH end if the essay is strong for its band (close to the next higher band)
+  - Use the CENTER if typical for the band
+  - Use the LOW end if the essay is weak for its band (close to the next lower band)
+  This gives you the totalScore.
+
+  ===== STEP 3: 分配子分 (Distribute Sub-scores) =====
+  Distribute the totalScore into 4 dimensions. The sum MUST equal totalScore exactly.
+  - Content (0-4): 切题程度 + 内容深度
+  - Organization (0-3): 结构完整性 + 逻辑连贯
+  - Proficiency (0-5): 语法正确性 + 词汇丰富度 + 拼写准确性
+  - Clarity (0-3): 表达清晰度 + 可读性
+
+  Sub-score distribution guide (by band):
+  Band 14 → Content 3-4, Organization 3, Proficiency 4-5, Clarity 3
+  Band 11 → Content 3, Organization 2-3, Proficiency 3-4, Clarity 2-3
+  Band 8  → Content 2-3, Organization 2, Proficiency 2-3, Clarity 1-2
+  Band 5  → Content 1-2, Organization 1, Proficiency 1-2, Clarity 1
+  Band 2  → Content 0-1, Organization 0-1, Proficiency 0-1, Clarity 0-1
+
+  ===== CONSISTENCY CHECK =====
+  Before outputting, verify:
+  1. Does totalScore fall within the chosen band's range?
+  2. Does Content + Organization + Proficiency + Clarity = totalScore?
+  3. Would a typical Chinese university English teacher give roughly the same band for this essay?
+
+  IMPORTANT: Scoring and critiques are INDEPENDENT tasks. Be a fair examiner for the SCORE (holistic impression), and be an exhaustive detective for CRITIQUES (find ALL errors). A low-scoring essay can still receive warm, encouraging feedback in Chinese.
 
   EXECUTION PROTOCOL (Must follow strictly in order):
 
-  PHASE 1: THE DIAGNOSTIC PHASE (The Grammar Detective) - CRITICAL PRIORITY
-  You are a "Grammar Detective". You must detect and list EVERY SINGLE error found in the essay.
-  - DATA FIELD RULE 2: The \`context\` field MUST contain the COMPLETE SENTENCE where the error occurred. This is crucial for the user to understand the mistake.
-  - QUANTITY RULE: DO NOT LIMIT TO 3 ERRORS. If the student made 12 mistakes, you MUST return 12 critique items.
-  - Coverage: Detect and list every single error(Subject-Verb Agreement, Articles, Prepositions, Chinglish, Collocation errors, Run-on sentences, and Punctuation).
-  - Constraint: Be exhaustive. A short list of critiques is a failure of your duty.
+  PHASE 1: THE DIAGNOSTIC PHASE (Full-Spectrum Critique) - CRITICAL PRIORITY
+  You must detect and list issues across ALL FOUR categories. Do NOT only focus on grammar.
+  - DATA FIELD RULE: The \`context\` field MUST contain the COMPLETE SENTENCE where the issue occurred.
+  - QUANTITY RULE: DO NOT LIMIT TO 3 ITEMS. Be exhaustive across all categories.
+  
+  MANDATORY COVERAGE — You MUST generate critiques in ALL 4 categories:
+  
+  [Content] (category: "Content"):
+  - Arguments that are too shallow, vague, or unsupported by evidence/examples
+  - Points that merely assert without reasoning (e.g., "X is important" without explaining why)
+  - Missing depth or originality in the analysis
+  - Off-topic or irrelevant content
+  
+  [Organization] (category: "Organization"):
+  - Weak or missing thesis statement in the introduction
+  - Paragraphs that lack clear topic sentences
+  - Poor logical flow between paragraphs or ideas
+  - Conclusion that merely repeats the introduction without synthesis or elevation
+  - Over-reliance on formulaic transitions without real logical connection
+  
+  [Proficiency] (category: "Proficiency"):
+  - Subject-Verb Agreement, Articles, Prepositions, Tense errors
+  - Spelling errors, Chinglish expressions, Collocation errors
+  - Run-on sentences, Sentence fragments, Punctuation errors
+  - Repetitive vocabulary or sentence patterns
+  
+  [Clarity] (category: "Clarity"):
+  - Ambiguous phrasing where the intended meaning is unclear
+  - Confusing sentence structure that impedes understanding
+  - Word choice errors that change the intended meaning
+  
+  Constraint: If the essay has no issues in a category, you may skip it. But you MUST actively look for issues in ALL 4 categories, not just grammar.
 
   PHASE 2: THE COACHING PHASE (Contrastive Logic)
   You are teaching LOGIC, STRUCTURE, and ACADEMIC TONE. 

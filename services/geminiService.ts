@@ -105,7 +105,7 @@ const callOpenAICompatible = async (
   model: string,
   systemPrompt: string,
   userPrompt: string,
-  options: { temperature?: number; jsonMode?: boolean } = {}
+  options: { temperature?: number; jsonMode?: boolean; seed?: number } = {}
 ): Promise<string> => {
   const url = `${baseUrl.replace(/\/+$/, '')}/chat/completions`;
   
@@ -119,6 +119,11 @@ const callOpenAICompatible = async (
     top_p: 0.95,
     max_tokens: 8192, // 防止复杂响应被截断（DeepSeek 默认仅 4096）
   };
+
+  // 添加 seed 以提高评分确定性
+  if (options.seed !== undefined) {
+    body.seed = options.seed;
+  }
 
   // JSON 模式：大部分 OpenAI 兼容 API 都支持
   if (options.jsonMode) {
@@ -244,7 +249,7 @@ const callAI = async(
   systemPrompt: string, 
   userPrompt: string, 
   responseSchema?: Schema,
-  options: { temperature?: number } = {}
+  options: { temperature?: number; seed?: number } = {}
   ):Promise<string> => {
   const fullConfig = getFullApiConfig();
   const isGoogle = fullConfig.provider === 'google';
@@ -266,7 +271,8 @@ const callAI = async(
       userPrompt,
       { 
         temperature: options.temperature, 
-        jsonMode: !!responseSchema 
+        jsonMode: !!responseSchema,
+        seed: options.seed
       }
     );
   }
@@ -552,31 +558,114 @@ export const generateEssayIntroConclusion = async (
 // --- Module 2: Essay Grader ---
 
 export const gradeEssay = async (topic: string, essayText: string): Promise<EssayGradeResult> => {
-  // Step 1: Grade and Critique
-  const step1Schema: Schema = {
+  // ===== Step 1a: 独立评分 (Scoring Only) =====
+  // 将评分独立出来，使用 temperature=0 + seed 确保稳定性
+  const scoringSchema: Schema = {
     type: Type.OBJECT,
     properties: {
-      totalScore: { type: Type.NUMBER },
+      errorCount: { type: Type.NUMBER, description: "Total language errors found" },
+      band: { type: Type.NUMBER, description: "Band center: 14, 11, 8, 5, or 2" },
+      bandReason: { type: Type.STRING, description: "定档理由（中文），需包含错误数量分析" },
+      totalScore: { type: Type.NUMBER, description: "Final score 1-15" },
       subScores: {
         type: Type.OBJECT,
         properties: {
-          content: { type: Type.NUMBER },
-          organization: { type: Type.NUMBER },
-          proficiency: { type: Type.NUMBER },
-          clarity: { type: Type.NUMBER }
+          content: { type: Type.NUMBER, description: "0-4" },
+          organization: { type: Type.NUMBER, description: "0-3" },
+          proficiency: { type: Type.NUMBER, description: "0-5" },
+          clarity: { type: Type.NUMBER, description: "0-3" }
         },
         required: ['content', 'organization', 'proficiency', 'clarity']
-      },
-      modelSubScores: {
-        type: Type.OBJECT,
-        properties: {
-          content: { type: Type.NUMBER },
-          organization: { type: Type.NUMBER },
-          proficiency: { type: Type.NUMBER },
-          clarity: { type: Type.NUMBER }
-        },
-        required: ['content', 'organization', 'proficiency', 'clarity']
-      },
+      }
+    },
+    required: ['errorCount', 'band', 'bandReason', 'totalScore', 'subScores']
+  };
+
+  const scoringSystemPrompt = `你是一位资深四六级阅卷专家，拥有10年作文评阅经验。你的评分风格是：严厉、精准、区分度高，绝不趋中，绝不手软。
+你的唯一任务是给作文评分。不要生成修改意见、范文或其他任何内容。满分15分。
+
+【核心原则】
+1. 先定档，后打分：必须先明确作文属于14/11/8/5/2中的哪一个档次，再给出具体分数。
+2. 语言错误是降档第一要素：只要有"较多严重错误"（拼写、主谓一致、动词形态、句子结构），直接锁定8分档及以下，禁止给11分以上。
+3. 空洞/偏题/无例证 = 内容分腰斩：仅有观点罗列、零展开、零例证、零解释，内容维度(Content)不得超过2/4。
+4. 禁止"结构好就给高分"：结构清晰是8分档的及格线，不是11分档的通行证。
+
+【⚠️ 红线规则（不可违反）】
+1. 语言错误 ≥ 3处（含拼写、语法、搭配等严重错误）→ 禁止给11分及以上！
+2. 任一观点零展开（仅罗列无解释无例证）→ Content不得超过2/4！
+3. 严重偏题 → 直接锁定5分档及以下！
+4. 字数严重不足 → 总分不得超过8分！
+5. 禁止"结构好就给高分"！
+
+【评分五步强制流程】
+
+===== 第1步：快速定档 =====
+通读全文，根据整体印象，先给出初步档次（14/11/8/5/2）及一句话理由。
+
+===== 第2步：语言错误普查 =====
+逐句检查，找出所有严重语言错误（拼写、主谓不一致、动词形态、冠词、介词、句子结构、中式英语、搭配不当等），统计 errorCount。
+- 如果 errorCount ≥ 3 且初步档次为11分档或更高 → 必须降至8分档或更低。
+
+===== 第3步：内容与论证核查 =====
+检查每个观点/论点：
+- 是否有具体展开（解释 why / how）？
+- 是否有例证或细节支撑？
+- 如果观点仅是罗列（如"First... Second... Third..."后无展开），Content 不得超过2/4。
+
+===== 第4步：结构与逻辑检查 =====
+- 是否有开头引入、主体段落、结尾总结？
+- 段落之间逻辑是否连贯？
+- 注意：结构清晰只是8分档的基本要求，不能因为结构好就升档。
+
+===== 第5步：综合打分 =====
+结合以上四步，确定最终档次和分数。
+
+【档次锚定标准】
+
+【14分档（13-15分）】
+切题精准，语言基本无错（errorCount ≤ 2），观点有层次，有解释有例证，行文流畅，逻辑严密。
+
+【11分档（10-12分）】
+切题，观点具体可行，每个观点有简要解释，语言少量错误（errorCount ≤ 2），逻辑基本清晰。
+
+【8分档（7-9分）】
+观点正确但零展开或展开不足，结构清晰，语言错误 ≥ 3处，或内容空洞。这是"结构好但内容浅+错误多"的典型档次。
+
+【5分档（4-6分）】
+严重偏题，语言崩溃（大量严重错误），逻辑断裂，几乎无有效论证。
+
+【2分档（1-3分）】
+思路紊乱，语言支离破碎，大部分句子有严重错误，难以理解。
+
+【子分分配】
+将 totalScore 分配到4个维度，总和必须等于 totalScore：
+- Content (0-4): 切题程度 + 内容深度 + 论证展开
+- Organization (0-3): 结构完整性 + 逻辑连贯
+- Proficiency (0-5): 语法正确性 + 词汇丰富度 + 拼写准确性
+- Clarity (0-3): 表达清晰度 + 可读性
+
+各档次子分参考：
+14分档 → Content 3-4, Organization 3, Proficiency 4-5, Clarity 3
+11分档 → Content 3, Organization 2-3, Proficiency 3-4, Clarity 2-3
+8分档  → Content 1-2, Organization 2, Proficiency 2-3, Clarity 1-2
+5分档  → Content 1, Organization 1, Proficiency 1-2, Clarity 1
+2分档  → Content 0-1, Organization 0-1, Proficiency 0-1, Clarity 0-1
+
+===== 最终检查 =====
+输出前必须确认：
+1. errorCount ≥ 3 时，是否已锁定8分档及以下？
+2. 观点零展开时，Content 是否 ≤ 2？
+3. Content + Organization + Proficiency + Clarity = totalScore？
+4. totalScore 是否在所选档次的3分范围内？
+
+bandReason 用中文输出，需包含：第1步初步定档结果、第2步发现的错误数量、第3步内容展开情况、最终定档理由。`;
+
+  const essayUserPrompt = `Topic: ${topic || 'General Essay'}\nEssay: "${essayText}"`;
+
+  // ===== Critique Schema (PHASE 1: Diagnostic) =====
+  const critiqueSchema: Schema = {
+    type: Type.OBJECT,
+    properties: {
       generalComment: { type: Type.STRING, description: "Comprehensive review in Chinese (Professor tone)." },
       issueOverview: {
         type: Type.OBJECT,
@@ -601,89 +690,17 @@ export const gradeEssay = async (topic: string, essayText: string): Promise<Essa
           },
           required: ['original', 'context', 'revised', 'category', 'severity', 'explanation']
         }
-      },
-      contrastiveLearning: {
-        type: Type.ARRAY,
-        items: {
-          type: Type.OBJECT,
-          properties: {
-            category: { type: Type.STRING, enum: ['Language Foundation', 'Logical Reasoning', 'Strategic Intent'] },
-            userContent: { type: Type.STRING },
-            polishedContent: { type: Type.STRING },
-            analysis: { type: Type.STRING, description: "Strategic analysis in Chinese" }
-          },
-          required: ['category', 'userContent', 'polishedContent', 'analysis']
-        }
-      },
-      polishedEssay: { type: Type.STRING }
+      }
     },
-    required: ['totalScore', 'subScores', 'generalComment', 'issueOverview', 'critiques', 'contrastiveLearning', 'polishedEssay']
+    required: ['generalComment', 'issueOverview', 'critiques']
   };
 
-  const step1SystemPrompt = `You are a distinguished Professor of English Writing (CET-4/6 Authority).
-  
-  
+  const critiqueSystemPrompt = `You are a distinguished Professor of English Writing (CET-4/6 Authority).
 
-  SCORING METHOD: 总体印象评分法 (Holistic Impression Scoring) — the OFFICIAL CET-4/6 method.
+  Your task is to generate detailed critiques for this student essay. Do NOT output any scoring fields.
+  Be exhaustive in finding ALL issues across all categories. A low-scoring essay can still receive warm, encouraging feedback in Chinese.
 
-  You MUST score in THREE steps. Do NOT skip any step.
-
-  ===== STEP 1: 定档 (Determine the Band) =====
-  Read the essay holistically, then select EXACTLY ONE band based on these official CET-4/6 descriptors:
-
-  【14分档 (13-15分)】
-  切题：完全符合题目要求，主题明确，内容紧扣主题。
-  表达：思想表达清晰，逻辑连贯，观点阐述充分。
-  语言：文字通顺，用词准确，语法错误极少，仅有个别拼写或标点小错。
-
-  【11分档 (10-12分)】
-  切题：基本切题，能围绕主题展开，但可能在某些细节上不够深入。
-  表达：思想表达较清楚，文字连贯，但可能存在个别逻辑衔接不够自然的情况。
-  语言：有少量语言错误，如语法、词汇使用不当，但不影响整体理解。
-
-  【8分档 (7-9分)】
-  切题：基本切题，但部分段落或内容可能偏离主题，或对主题的挖掘不够深入。
-  表达：思想表达不够清晰，文字勉强连贯，存在一些逻辑跳跃或衔接不畅的问题。
-  语言：语言错误较多，包括语法、词汇、句式等方面，部分错误可能影响理解。
-
-  【5分档 (4-6分)】
-  切题：基本切题，但内容可能较为单薄，或对主题的理解存在偏差。
-  表达：思想表达不清楚，连贯性差，段落之间或句子之间的逻辑关系混乱。
-  语言：有较多严重语言错误，严重影响理解。
-
-  【2分档 (1-3分)】
-  条理不清，思路紊乱，语言支离破碎，大部分句子存在严重错误，几乎无法理解。
-
-  ===== STEP 2: 定分 (Fine-tune within the Band) =====
-  Within the chosen band's 3-point range (e.g., 10-12 for Band 11):
-  - Use the HIGH end if the essay is strong for its band (close to the next higher band)
-  - Use the CENTER if typical for the band
-  - Use the LOW end if the essay is weak for its band (close to the next lower band)
-  This gives you the totalScore.
-
-  ===== STEP 3: 分配子分 (Distribute Sub-scores) =====
-  Distribute the totalScore into 4 dimensions. The sum MUST equal totalScore exactly.
-  - Content (0-4): 切题程度 + 内容深度
-  - Organization (0-3): 结构完整性 + 逻辑连贯
-  - Proficiency (0-5): 语法正确性 + 词汇丰富度 + 拼写准确性
-  - Clarity (0-3): 表达清晰度 + 可读性
-
-  Sub-score distribution guide (by band):
-  Band 14 → Content 3-4, Organization 3, Proficiency 4-5, Clarity 3
-  Band 11 → Content 3, Organization 2-3, Proficiency 3-4, Clarity 2-3
-  Band 8  → Content 2-3, Organization 2, Proficiency 2-3, Clarity 1-2
-  Band 5  → Content 1-2, Organization 1, Proficiency 1-2, Clarity 1
-  Band 2  → Content 0-1, Organization 0-1, Proficiency 0-1, Clarity 0-1
-
-  ===== CONSISTENCY CHECK =====
-  Before outputting, verify:
-  1. Does totalScore fall within the chosen band's range?
-  2. Does Content + Organization + Proficiency + Clarity = totalScore?
-  3. Would a typical Chinese university English teacher give roughly the same band for this essay?
-
-  IMPORTANT: Scoring and critiques are INDEPENDENT tasks. Be a fair examiner for the SCORE (holistic impression), and be an exhaustive detective for CRITIQUES (find ALL errors). A low-scoring essay can still receive warm, encouraging feedback in Chinese.
-
-  EXECUTION PROTOCOL (Must follow strictly in order):
+  EXECUTION PROTOCOL:
 
   PHASE 1: THE DIAGNOSTIC PHASE (Full-Spectrum Critique) - CRITICAL PRIORITY
   You must detect and list issues across ALL FOUR categories. Do NOT only focus on grammar.
@@ -718,6 +735,15 @@ export const gradeEssay = async (topic: string, essayText: string): Promise<Essa
   
   Constraint: If the essay has no issues in a category, you may skip it. But you MUST actively look for issues in ALL 4 categories, not just grammar.
 
+  DATA FORMAT Rules:
+  - \`generalComment\`, \`issueOverview\`, and \`critiques.explanation\` MUST be in SIMPLIFIED CHINESE.
+`;
+
+  // ===== Polish Prompt (PHASE 2: Contrastive Learning + Polished Essay) =====
+  const polishSystemPrompt = `You are a distinguished Professor of English Writing (CET-4/6 Authority).
+
+  Your task is to generate contrastive learning analysis and a polished model essay for this student essay. Do NOT generate critiques or scoring.
+
   PHASE 2: THE COACHING PHASE (Contrastive Logic)
   You are teaching LOGIC, STRUCTURE, and ACADEMIC TONE. 
   When generating the \`contrastiveLearning\` array, you MUST follow this protocol:
@@ -737,7 +763,7 @@ export const gradeEssay = async (topic: string, essayText: string): Promise<Essa
   - Constraint: Every item in \`contrastiveLearning\` must have a corresponding \`<highlight>\` tag in \`polishedEssay\`.
 
   3. DATA FORMAT Rules:
-  - \`generalComment\`, \`issueOverview\`, \`critiques.explanation\`, and \`contrastiveLearning.analysis\` MUST be in SIMPLIFIED CHINESE.
+  - \`contrastiveLearning.analysis\` MUST be in SIMPLIFIED CHINESE.
   - \`contrastiveLearning.category\` must be one of: 'Strategic Intent', 'Logical Reasoning', 'Language Foundation'.
   - \`contrastiveLearning.userContent\`: The student's original weak sentence/phrase.
   - \`contrastiveLearning.polishedContent\`: The specific upgraded phrase from the model.
@@ -751,32 +777,85 @@ export const gradeEssay = async (topic: string, essayText: string): Promise<Essa
   Structure Tags for Polished Essay:
   - Mark sections clearly with: [INTRODUCTION], [BODY_PARA_1], [BODY_PARA_2], [CONCLUSION].
 `;
-  const step1UserPrompt = `Topic: ${topic || 'General Essay'}\nEssay: "${essayText}"`;
-  
-  const step1Json = await callAI(step1SystemPrompt, step1UserPrompt, step1Schema, { temperature: 0.1 });
-  
-  let step1Data: any;
+
+  // ===== Polish Schema =====
+  const polishSchema: Schema = {
+    type: Type.OBJECT,
+    properties: {
+      modelSubScores: {
+        type: Type.OBJECT,
+        properties: {
+          content: { type: Type.NUMBER },
+          organization: { type: Type.NUMBER },
+          proficiency: { type: Type.NUMBER },
+          clarity: { type: Type.NUMBER }
+        },
+        required: ['content', 'organization', 'proficiency', 'clarity']
+      },
+      contrastiveLearning: {
+        type: Type.ARRAY,
+        items: {
+          type: Type.OBJECT,
+          properties: {
+            category: { type: Type.STRING, enum: ['Language Foundation', 'Logical Reasoning', 'Strategic Intent'] },
+            userContent: { type: Type.STRING },
+            polishedContent: { type: Type.STRING },
+            analysis: { type: Type.STRING, description: "Strategic analysis in Chinese" }
+          },
+          required: ['category', 'userContent', 'polishedContent', 'analysis']
+        }
+      },
+      polishedEssay: { type: Type.STRING }
+    },
+    required: ['contrastiveLearning', 'polishedEssay']
+  };
+
+  // ===== Run Step 1a (Scoring) + Critique + Polish in parallel =====
+  const [scoringJson, critiqueJson, polishJson] = await Promise.all([
+    callAI(scoringSystemPrompt, essayUserPrompt, scoringSchema, { temperature: 0, seed: 42 }),
+    callAI(critiqueSystemPrompt, essayUserPrompt, critiqueSchema, { temperature: 0.1 }),
+    callAI(polishSystemPrompt, essayUserPrompt, polishSchema, { temperature: 0.1 }),
+  ]);
+
+  // Parse scoring
+  let scoringData: any;
   try {
-    step1Data = JSON.parse(step1Json);
+    scoringData = JSON.parse(scoringJson);
   } catch (parseError) {
-    console.error('Step 1 JSON parse failed. Raw response:', step1Json.substring(0, 500));
-    throw new Error('AI 返回的评分数据格式异常，请重试。如果使用自定义 API，请确认模型支持 JSON 输出。');
+    console.error('Scoring JSON parse failed. Raw:', scoringJson.substring(0, 500));
+    throw new Error('AI 返回的评分数据格式异常，请重试。');
   }
+  scoringData.totalScore = typeof scoringData.totalScore === 'number' ? scoringData.totalScore : 0;
+  scoringData.subScores = scoringData.subScores || { content: 0, organization: 0, proficiency: 0, clarity: 0 };
 
-  // 数据校验：确保关键字段存在，提供默认值
-  step1Data.totalScore = typeof step1Data.totalScore === 'number' ? step1Data.totalScore : 0;
-  step1Data.subScores = step1Data.subScores || { content: 0, organization: 0, proficiency: 0, clarity: 0 };
-  step1Data.generalComment = step1Data.generalComment || '暂无评语';
-  step1Data.issueOverview = step1Data.issueOverview || { critical: [], general: [], minor: [] };
-  step1Data.critiques = Array.isArray(step1Data.critiques) ? step1Data.critiques : [];
-  step1Data.contrastiveLearning = Array.isArray(step1Data.contrastiveLearning) ? step1Data.contrastiveLearning : [];
-  step1Data.polishedEssay = step1Data.polishedEssay || essayText;
+  // Parse critique
+  let critiqueData: any;
+  try {
+    critiqueData = JSON.parse(critiqueJson);
+  } catch (parseError) {
+    console.error('Critique JSON parse failed. Raw:', critiqueJson.substring(0, 500));
+    critiqueData = {};
+  }
+  critiqueData.generalComment = critiqueData.generalComment || '暂无评语';
+  critiqueData.issueOverview = critiqueData.issueOverview || { critical: [], general: [], minor: [] };
+  critiqueData.critiques = Array.isArray(critiqueData.critiques) ? critiqueData.critiques : [];
 
-  // Prepare context for Step 2
-  const contrastiveContext = step1Data.contrastiveLearning
+  // Parse polish
+  let polishData: any;
+  try {
+    polishData = JSON.parse(polishJson);
+  } catch (parseError) {
+    console.error('Polish JSON parse failed. Raw:', polishJson.substring(0, 500));
+    polishData = {};
+  }
+  polishData.contrastiveLearning = Array.isArray(polishData.contrastiveLearning) ? polishData.contrastiveLearning : [];
+  polishData.polishedEssay = polishData.polishedEssay || essayText;
+
+  // Prepare context for Step 2 (using polishData from parallel call)
+  const contrastiveContext = polishData.contrastiveLearning
     .map((c: ContrastivePoint, i: number) => `Point ${i + 1} (${c.category || 'General'}): User wrote "${c.userContent || ''}" -> Polished to "${c.polishedContent || ''}". Analysis: ${c.analysis || ''}`)
     .join('\n');
-  const polishedWordsContext = (step1Data.polishedEssay || '').substring(0, 1000);
+  const polishedWordsContext = (polishData.polishedEssay || '').substring(0, 1000);
 
   // 5. CALL STEP 2: Retraining Generation (INTEGRATED LEARNING)
   const step2SystemPrompt = `
@@ -815,8 +894,8 @@ export const gradeEssay = async (topic: string, essayText: string): Promise<Essa
       **Output Constraints:**
       - \`question\`: The specific instruction in CHINESE following the formats above.
       - \`originalContext\`: The "bad" example, simple sentence, or context description to be improved.
-      - \`hint\`: A specific "Expert Tip" pointing back to the model essay's technique (in CHINESE).
-      - \`mandatoryKeywords\`: List of 2-3 English keywords/phrases that strictly force the use of the strategy (e.g., ["Admittedly", "However"]).
+      - \`hint\`: A specific "Expert Tip" pointing back to the model esay's technique (in CHINESE).
+      - \`mandatoryKeywords\`: List of 2-3 English keywords/phrases thast strictly force the use of the strategy (e.g., ["Admittedly", "However"]).
       - \`referenceAnswer\`: A perfect C1-level answer (English).
       - \`explanation\`: Explain *why* this answer is better (e.g., "通过使用此技巧，你成功避免了...，提升了...") (in CHINESE).
       - \`materials\`: Extract 3-5 key phrases/words from the provided *polished essay context*: "${polishedWordsContext}".
@@ -884,7 +963,8 @@ export const gradeEssay = async (topic: string, essayText: string): Promise<Essa
   retraining.materials = Array.isArray(retraining.materials) ? retraining.materials : [];
 
   // 6. Merge and Return
-  return { ...step1Data, retraining };
+  // 合并：Step 1a 评分 + Critique 批注 + Polish 范文 + Step 2 练习
+  return { ...critiqueData, ...polishData, totalScore: scoringData.totalScore, subScores: scoringData.subScores, retraining };
 };
 
 // --- Module 3: Sentence Drills ---

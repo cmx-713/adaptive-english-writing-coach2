@@ -221,6 +221,50 @@ const PhaseOneCards: React.FC<PhaseOneCardsProps> = ({
           先尝试从以下三个维度出发，写下你的第一反应（关键词或短句）。
           <br/>只有当你付出思考后，苏格拉底教练的启发才会出现。
         </p>
+
+        {/* 🆕 Progress Indicator - Always Visible */}
+        <div className="max-w-3xl mx-auto mt-6 mb-2">
+          <div className={`rounded-xl border-2 p-4 transition-all duration-300 ${
+            Object.keys(dimensionDrafts).length >= 2 
+              ? 'bg-emerald-50 border-emerald-300 shadow-lg' 
+              : 'bg-blue-50 border-blue-200'
+          }`}>
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm font-bold text-slate-700">
+                📝 写作进度
+              </span>
+              <span className={`text-xs font-bold px-2 py-1 rounded-full ${
+                Object.keys(dimensionDrafts).length >= 2
+                  ? 'bg-emerald-200 text-emerald-800'
+                  : 'bg-blue-200 text-blue-800'
+              }`}>
+                {Object.keys(dimensionDrafts).length}/2 维度已完成
+              </span>
+            </div>
+            
+            {/* Progress Bar */}
+            <div className="w-full bg-slate-200 rounded-full h-2 mb-2 overflow-hidden">
+              <div 
+                className={`h-full transition-all duration-500 ${
+                  Object.keys(dimensionDrafts).length >= 2 ? 'bg-emerald-500' : 'bg-blue-500'
+                }`}
+                style={{ width: `${Math.min((Object.keys(dimensionDrafts).length / 2) * 100, 100)}%` }}
+              />
+            </div>
+            
+            <p className="text-xs text-slate-600">
+              {Object.keys(dimensionDrafts).length === 0 && (
+                <>💡 完成任意 <strong className="text-brand-600">2 个维度</strong>即可 AI 辅助生成完整作文</>
+              )}
+              {Object.keys(dimensionDrafts).length === 1 && (
+                <>⏳ 再完成 <strong className="text-amber-600">1 个维度</strong>即可生成作文！</>
+              )}
+              {Object.keys(dimensionDrafts).length >= 2 && (
+                <>🎉 太棒了！现在可以<strong className="text-emerald-600">组合成篇</strong>了（也可继续完成更多维度）</>
+              )}
+            </p>
+          </div>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">

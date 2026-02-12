@@ -210,6 +210,88 @@ const RadarChart: React.FC<{
   );
 };
 
+// DimensionTrendMini: 单个维度的迷你趋势图
+const DimensionTrendMini: React.FC<{ 
+  dimension: { key: string; label: string; max: number; icon: string; color: string }; 
+  data: HistoryItem[]; 
+}> = ({ dimension, data }) => {
+  const height = 60;
+  const width = 180;
+  const paddingX = 10;
+  const paddingY = 10;
+
+  // 过滤有效数据并提取该维度分数
+  const validData = data
+    .filter(item => {
+      const d = item.data as EssayHistoryData;
+      return d?.result?.subScores && typeof d.result.subScores[dimension.key as keyof typeof d.result.subScores] === 'number';
+    })
+    .slice(-5); // 最近5次
+
+  if (validData.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full text-slate-400 text-xs">
+        <span>暂无数据</span>
+      </div>
+    );
+  }
+
+  const points = validData.map((item, index) => {
+    const score = (item.data as EssayHistoryData).result.subScores[dimension.key as keyof EssayGradeResult['subScores']] as number;
+    const x = validData.length === 1 
+      ? width / 2 
+      : paddingX + (index * (width - 2 * paddingX)) / (validData.length - 1);
+    const y = (height - paddingY) - (score / dimension.max) * (height - 2 * paddingY);
+    return { x, y, score };
+  });
+
+  const pathD = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ');
+  const areaD = `${pathD} L ${points[points.length - 1].x} ${height} L ${points[0].x} ${height} Z`;
+
+  // 计算趋势（最后一次 vs. 第一次）
+  const trend = points[points.length - 1].score - points[0].score;
+  const trendIcon = trend > 0 ? '📈' : trend < 0 ? '📉' : '➡️';
+  const trendColor = trend > 0 ? 'text-emerald-600' : trend < 0 ? 'text-rose-600' : 'text-slate-400';
+
+  return (
+    <div className="flex flex-col gap-1">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-1">
+          <span className="text-sm">{dimension.icon}</span>
+          <span className="text-xs font-bold text-slate-700">{dimension.label}</span>
+        </div>
+        <span className={`text-xs font-mono font-bold ${trendColor}`}>
+          {points[points.length - 1].score}/{dimension.max}
+        </span>
+      </div>
+      
+      <div className="relative" style={{ height: `${height}px` }}>
+        <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-full">
+          <defs>
+            <linearGradient id={`grad-${dimension.key}`} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={dimension.color} stopOpacity="0.3" />
+              <stop offset="100%" stopColor={dimension.color} stopOpacity="0.05" />
+            </linearGradient>
+          </defs>
+          
+          <path d={areaD} fill={`url(#grad-${dimension.key})`} stroke="none" />
+          <path d={pathD} fill="none" stroke={dimension.color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+          
+          {points.map((p, i) => (
+            <g key={i}>
+              <circle cx={p.x} cy={p.y} r="3" fill="white" stroke={dimension.color} strokeWidth="2" />
+            </g>
+          ))}
+        </svg>
+        
+        <div className={`absolute bottom-0 right-0 text-[10px] font-bold ${trendColor}`}>
+          {trendIcon} {trend > 0 ? '+' : ''}{trend.toFixed(1)}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // --- 2. 主组件 (ProfileCenter) ---
 
 const ProfileCenter: React.FC<ProfileCenterProps> = ({ isActive, onNavigate }) => {
@@ -224,6 +306,7 @@ const ProfileCenter: React.FC<ProfileCenterProps> = ({ isActive, onNavigate }) =
   // Interactive State
   const [revealedExplanationIds, setRevealedExplanationIds] = useState<Set<number>>(new Set());
   const [activeErrorFilter, setActiveErrorFilter] = useState<CritiqueCategory | 'ALL'>('ALL');
+  const [showDimensionTrends, setShowDimensionTrends] = useState(false); // 🆕 4维度历史趋势折叠状态
 
   // Computed Logic
   const errorStats = useMemo(() => {
@@ -454,6 +537,41 @@ const ProfileCenter: React.FC<ProfileCenterProps> = ({ isActive, onNavigate }) =
                     {!latestEssayData || !historicalAverage ? <div className="text-center text-slate-400 text-sm py-10">暂无数据</div> : (
                         <>
                           <RadarChart current={latestEssayData.subScores} average={historicalAverage} />
+                          
+                          {/* 🆕 4维度历史趋势（可折叠） */}
+                          {essayHistory.length >= 2 && (
+                            <div className="mt-3 w-full">
+                              <button
+                                onClick={() => setShowDimensionTrends(!showDimensionTrends)}
+                                className="w-full flex items-center justify-between px-3 py-2 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg transition-colors text-xs font-bold text-slate-600"
+                              >
+                                <span>📊 查看各维度历史趋势</span>
+                                <span className={`transform transition-transform ${showDimensionTrends ? 'rotate-180' : ''}`}>▼</span>
+                              </button>
+                              
+                              {showDimensionTrends && (
+                                <div className="mt-2 grid grid-cols-2 gap-3 p-3 bg-slate-50/50 border border-slate-200 rounded-lg animate-fade-in-up">
+                                  <DimensionTrendMini 
+                                    dimension={{ key: 'content', label: '内容', max: 4, icon: '📝', color: '#9333ea' }} 
+                                    data={essayHistory} 
+                                  />
+                                  <DimensionTrendMini 
+                                    dimension={{ key: 'organization', label: '组织', max: 3, icon: '🧩', color: '#f59e0b' }} 
+                                    data={essayHistory} 
+                                  />
+                                  <DimensionTrendMini 
+                                    dimension={{ key: 'proficiency', label: '语言', max: 5, icon: '🗣️', color: '#3b82f6' }} 
+                                    data={essayHistory} 
+                                  />
+                                  <DimensionTrendMini 
+                                    dimension={{ key: 'clarity', label: '清晰', max: 3, icon: '📖', color: '#f43f5e' }} 
+                                    data={essayHistory} 
+                                  />
+                                </div>
+                              )}
+                            </div>
+                          )}
+                          
                           {recommendation && (
                             <div className="mt-3 w-full bg-slate-50 border border-slate-200 rounded-xl p-3 animate-fade-in-up">
                                 <div className="flex items-center gap-2 mb-1">

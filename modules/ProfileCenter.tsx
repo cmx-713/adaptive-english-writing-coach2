@@ -307,6 +307,9 @@ const ProfileCenter: React.FC<ProfileCenterProps> = ({ isActive, onNavigate }) =
   const [revealedExplanationIds, setRevealedExplanationIds] = useState<Set<number>>(new Set());
   const [activeErrorFilter, setActiveErrorFilter] = useState<CritiqueCategory | 'ALL'>('ALL');
   const [showDimensionTrends, setShowDimensionTrends] = useState(false); // 🆕 4维度历史趋势折叠状态
+  const [showTrainingPreview, setShowTrainingPreview] = useState(false); // 🆕 训练预览对话框
+  const [pendingTrainingCategory, setPendingTrainingCategory] = useState<CritiqueCategory | null>(null); // 🆕 待训练的维度
+  const [showAllHistory, setShowAllHistory] = useState(false); // 🆕 学习活动档案展开状态
 
   // Computed Logic
   const errorStats = useMemo(() => {
@@ -413,6 +416,64 @@ const ProfileCenter: React.FC<ProfileCenterProps> = ({ isActive, onNavigate }) =
         drillMode: weakest.drill
     };
   }, [latestEssayData]);
+
+  // 🆕 训练配置映射
+  const getTrainingConfig = (category: CritiqueCategory) => {
+    const configs = {
+      'Content': {
+        mode: '思维训练',
+        modeEn: 'Socratic Coach',
+        focus: '多维度审题与论证展开',
+        duration: '10-15分钟',
+        icon: '🧠',
+        color: 'purple'
+      },
+      'Organization': {
+        mode: '句式工坊',
+        modeEn: 'Structure Architect',
+        focus: '逻辑连接词与段落衔接',
+        duration: '5-8分钟',
+        icon: '🏗️',
+        color: 'amber'
+      },
+      'Proficiency': {
+        mode: '语法门诊',
+        modeEn: 'Grammar Doctor',
+        focus: '语法准确性与词汇搭配',
+        duration: '5-8分钟',
+        icon: '🩺',
+        color: 'blue'
+      },
+      'Clarity': {
+        mode: '表达升格',
+        modeEn: 'Elevation Lab',
+        focus: '学术词汇与表达清晰度',
+        duration: '5-8分钟',
+        icon: '🧪',
+        color: 'rose'
+      }
+    };
+    return configs[category];
+  };
+
+  // 🆕 处理训练跳转
+  const handleGoToTraining = (category: CritiqueCategory) => {
+    setPendingTrainingCategory(category);
+    setShowTrainingPreview(true);
+    // 滚动到页面顶部，确保对话框可见
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleConfirmTraining = () => {
+    setShowTrainingPreview(false);
+    // 根据维度类型跳转到对应模块
+    if (pendingTrainingCategory === 'Content') {
+      onNavigate('coach'); // Content → 思维训练
+    } else {
+      onNavigate('drills'); // Organization/Proficiency/Clarity → 句子特训
+    }
+    // TODO: 未来可以在这里传递训练配置参数到对应模块
+  };
 
   // Effects & Data Loading
   const refreshData = useCallback(() => {
@@ -677,7 +738,7 @@ const ProfileCenter: React.FC<ProfileCenterProps> = ({ isActive, onNavigate }) =
                         <div className="mt-3 pt-3 border-t border-slate-100 flex-shrink-0 animate-fade-in-up">
                             <div className="bg-slate-800 rounded-xl p-3 flex items-center justify-between text-white shadow-lg">
                                 <div><div className="text-[10px] text-slate-400 uppercase font-bold">Recommended Action</div><div className="text-xs font-bold">针对 {activeErrorFilter} 进行专项特训</div></div>
-                                <button onClick={() => onNavigate('drills')} className="px-3 py-1.5 bg-white text-slate-900 text-xs font-bold rounded-lg hover:bg-brand-50 transition-colors">去训练 →</button>
+                                <button onClick={() => handleGoToTraining(activeErrorFilter)} className="px-3 py-1.5 bg-white text-slate-900 text-xs font-bold rounded-lg hover:bg-brand-50 transition-colors">去训练 →</button>
                             </div>
                         </div>
                         )}
@@ -693,8 +754,9 @@ const ProfileCenter: React.FC<ProfileCenterProps> = ({ isActive, onNavigate }) =
             <div className="mb-12">
                 <h3 className="text-xl font-bold text-slate-800 mb-6 flex items-center gap-2"><span className="bg-blue-100 w-8 h-8 rounded-lg flex items-center justify-center text-base">🗂️</span>学习活动档案 (Activity Log)</h3>
                 {historyItems.length === 0 ? <div className="text-center py-10 bg-slate-50 rounded-2xl border border-slate-100 border-dashed"><p className="text-slate-400">暂无历史记录</p></div> : (
-                    <div className="space-y-4">
-                        {historyItems.map((item) => {
+                    <>
+                      <div className="space-y-4">
+                        {(showAllHistory ? historyItems : historyItems.slice(0, 5)).map((item) => {
                             const badge = getBadgeConfig(item.dataType);
                             const isClickable = item.dataType === 'scaffold' || item.dataType === 'essay_grade';
                             return (
@@ -720,10 +782,90 @@ const ProfileCenter: React.FC<ProfileCenterProps> = ({ isActive, onNavigate }) =
                                 </div>
                             );
                         })}
-                    </div>
+                      </div>
+                      
+                      {/* 🆕 展开/收起按钮 */}
+                      {historyItems.length > 5 && (
+                        <div className="mt-6 text-center">
+                          <button
+                            onClick={() => setShowAllHistory(!showAllHistory)}
+                            className="px-6 py-3 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-sm font-bold text-slate-600 transition-all hover:shadow-md flex items-center gap-2 mx-auto"
+                          >
+                            <span>{showAllHistory ? '收起' : `展开更多 (${historyItems.length - 5})`}</span>
+                            <span className={`transform transition-transform ${showAllHistory ? 'rotate-180' : ''}`}>▼</span>
+                          </button>
+                        </div>
+                      )}
+                    </>
                 )}
             </div>
         </>
+      )}
+
+      {/* 🆕 训练预览引导对话框 */}
+      {showTrainingPreview && pendingTrainingCategory && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 animate-fade-in-up">
+            {(() => {
+              const config = getTrainingConfig(pendingTrainingCategory);
+              const colorClasses = {
+                purple: 'bg-purple-100 text-purple-600',
+                amber: 'bg-amber-100 text-amber-600',
+                blue: 'bg-blue-100 text-blue-600',
+                rose: 'bg-rose-100 text-rose-600'
+              }[config.color];
+              
+              return (
+                <>
+                  <div className="text-center mb-6">
+                    <div className={`w-16 h-16 ${colorClasses} rounded-2xl flex items-center justify-center text-4xl mx-auto mb-4 shadow-lg`}>
+                      {config.icon}
+                    </div>
+                    <h3 className="text-2xl font-bold text-slate-800 mb-2">
+                      🎯 即将开始针对性训练
+                    </h3>
+                    <p className="text-sm text-slate-500">
+                      根据诊断报告为你推荐最佳训练方案
+                    </p>
+                  </div>
+
+                  <div className="space-y-3 mb-6 bg-slate-50 rounded-xl p-4 border border-slate-200">
+                    <div className="flex items-start gap-3">
+                      <span className="text-slate-400 text-xs font-bold min-w-[60px]">训练类型</span>
+                      <span className="text-slate-800 text-sm font-bold flex-1">
+                        {config.mode}
+                        <span className="text-xs text-slate-400 font-normal ml-2">({config.modeEn})</span>
+                      </span>
+                    </div>
+                    <div className="flex items-start gap-3">
+                      <span className="text-slate-400 text-xs font-bold min-w-[60px]">聚焦问题</span>
+                      <span className="text-slate-700 text-sm flex-1">{config.focus}</span>
+                    </div>
+                    <div className="flex items-start gap-3">
+                      <span className="text-slate-400 text-xs font-bold min-w-[60px]">预计时长</span>
+                      <span className="text-slate-700 text-sm flex-1">{config.duration}</span>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => setShowTrainingPreview(false)}
+                      className="flex-1 px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-sm transition-colors"
+                    >
+                      稍后再练
+                    </button>
+                    <button
+                      onClick={handleConfirmTraining}
+                      className={`flex-1 px-4 py-3 ${colorClasses} rounded-xl font-bold text-sm transition-all hover:shadow-lg hover:-translate-y-0.5`}
+                    >
+                      开始训练 →
+                    </button>
+                  </div>
+                </>
+              );
+            })()}
+          </div>
+        </div>
       )}
     </div>
   );

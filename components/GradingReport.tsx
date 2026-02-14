@@ -160,14 +160,14 @@ const TabButton: React.FC<{ active: boolean; onClick: () => void; icon: string; 
     onClick={onClick}
     className={`flex-1 min-w-[120px] py-3 px-2 rounded-lg transition-all duration-200 flex flex-col items-center justify-center gap-1
       ${active 
-        ? 'bg-indigo-50 text-indigo-700 shadow-sm ring-1 ring-indigo-200' 
+        ? 'bg-blue-50 text-blue-900 shadow-sm ring-1 ring-blue-200' 
         : 'text-slate-500 hover:bg-slate-50 hover:text-slate-700'}`}
   >
     <div className="flex items-center gap-2">
       <span className="text-xl">{icon}</span>
       <span className="font-bold text-sm">{label}</span>
     </div>
-    <span className={`text-[10px] uppercase tracking-wider ${active ? 'text-indigo-400' : 'text-slate-400'}`}>
+    <span className={`text-[10px] uppercase tracking-wider ${active ? 'text-blue-600' : 'text-slate-400'}`}>
       {subLabel}
     </span>
   </button>
@@ -651,18 +651,18 @@ const GradingReport: React.FC<GradingReportProps> = ({
                   <button onClick={onBack} className="md:hidden text-slate-400 hover:text-slate-600">← Back</button>
               )}
               <h2 className="text-2xl font-serif font-bold text-slate-800">批改报告</h2>
-              <span className="px-2 py-0.5 bg-indigo-50 text-indigo-700 text-xs font-bold uppercase rounded border border-indigo-100">Grading Report</span>
+              <span className="px-2 py-0.5 bg-blue-50 text-blue-900 text-xs font-bold uppercase rounded border border-blue-100">Grading Report</span>
            </div>
            <p className="text-sm text-slate-500 mt-1">Topic: {topic || 'Untitled'}</p>
          </div>
          <div className="flex gap-2">
             {onBack && (
-              <button onClick={onBack} className="hidden md:block text-sm font-medium px-4 py-2 bg-white text-slate-500 rounded-lg border border-slate-200 hover:text-indigo-600 hover:bg-slate-50 transition-all shadow-sm">
+              <button onClick={onBack} className="hidden md:block text-sm font-medium px-4 py-2 bg-white text-slate-500 rounded-lg border border-slate-200 hover:text-blue-900 hover:bg-slate-50 transition-all shadow-sm">
                 ← Back to Input
               </button>
             )}
             {!isHistoryView && onSave && (
-                <button onClick={onSave} disabled={isSaved} className={`text-sm font-medium px-4 py-2 rounded-lg border transition-all shadow-sm flex items-center gap-2 ${isSaved ? 'bg-green-50 border-green-200 text-green-700' : 'bg-white border-slate-200 text-slate-500 hover:text-indigo-600 hover:bg-slate-50'}`}>
+                <button onClick={onSave} disabled={isSaved} className={`text-sm font-medium px-4 py-2 rounded-lg border transition-all shadow-sm flex items-center gap-2 ${isSaved ? 'bg-green-50 border-green-200 text-green-700' : 'bg-white border-slate-200 text-slate-500 hover:text-blue-900 hover:bg-slate-50'}`}>
                 {isSaved ? '✓ Saved' : '♥ Save Report'}
                 </button>
             )}
@@ -689,8 +689,8 @@ const GradingReport: React.FC<GradingReportProps> = ({
             <div className="bg-white rounded-2xl shadow-md border border-slate-100 overflow-hidden">
                <div className="p-8 grid grid-cols-1 md:grid-cols-3 gap-8 items-center">
                  <div className="text-center md:border-r border-slate-100">
-                    <div className="inline-flex items-center justify-center w-36 h-36 rounded-full border-8 border-indigo-50 bg-white relative mb-4 shadow-inner">
-                       <span className="text-6xl font-bold text-indigo-600 tracking-tighter">{result.totalScore}</span>
+                    <div className="inline-flex items-center justify-center w-36 h-36 rounded-full border-8 border-blue-50 bg-white relative mb-4 shadow-inner">
+                       <span className="text-6xl font-bold text-blue-900 tracking-tighter">{result.totalScore}</span>
                        <span className="absolute bottom-6 text-xs text-slate-400 font-bold uppercase bg-white px-2 rounded">/ 15 Points</span>
                     </div>
                     <div className="text-sm font-bold text-slate-500 uppercase tracking-wider">总体得分 (Total Score)</div>
@@ -893,14 +893,14 @@ const GradingReport: React.FC<GradingReportProps> = ({
                           <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
                             Card {activeExercise + 1} / {result.retraining.exercises.length}
                           </span>
-                          <span className="bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded text-[10px] font-bold uppercase border border-indigo-200">
+                          <span className="bg-blue-100 text-blue-900 px-2 py-0.5 rounded text-[10px] font-bold uppercase border border-blue-200">
                              {result.retraining.exercises[activeExercise].type}
                           </span>
                        </div>
                        
                        <div className="flex gap-1">
                           {result.retraining.exercises.map((_, idx) => (
-                             <div key={idx} className={`h-1.5 rounded-full transition-all duration-300 ${idx === activeExercise ? 'w-8 bg-indigo-500' : 'w-2 bg-slate-200'}`}></div>
+                             <div key={idx} className={`h-1.5 rounded-full transition-all duration-300 ${idx === activeExercise ? 'w-8 bg-blue-900' : 'w-2 bg-slate-200'}`}></div>
                           ))}
                        </div>
                     </div>
@@ -938,14 +938,14 @@ const GradingReport: React.FC<GradingReportProps> = ({
                           )}
                           {result.retraining.exercises[activeExercise].mandatoryKeywords && result.retraining.exercises[activeExercise].mandatoryKeywords.length > 0 && (
                               <div className="mb-4 animate-fade-in-up">
-                                <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider block mb-2 flex items-center gap-1">
+                                <span className="text-[10px] font-bold text-blue-600 uppercase tracking-wider block mb-2 flex items-center gap-1">
                                 <span>🗝️</span> 必须使用的词汇 (Mandatory Keywords)</span>
                                <div className="flex flex-wrap gap-2">
                           {result.retraining.exercises[activeExercise].mandatoryKeywords.map((kw, i) => (
                         <span 
                           key={i} 
                           onClick={() => handleInputChange({ target: { value: (userInputs[activeExercise] || '') + kw + ' ' } } as any)}
-                          className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-700 rounded-lg text-sm font-bold font-mono cursor-pointer transition-colors shadow-sm select-none"
+                          className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-900 rounded-lg text-sm font-bold font-mono cursor-pointer transition-colors shadow-sm select-none"
                           title="点击插入到输入框"
                         >
                         {kw}
@@ -962,17 +962,17 @@ const GradingReport: React.FC<GradingReportProps> = ({
                                   value={userInputs[activeExercise] || ''}
                                   onChange={handleInputChange}
                                   placeholder="在此尝试应用范文技法进行改写..."
-                                  className="w-full h-32 p-4 bg-slate-50 rounded-xl border border-slate-200 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-50 outline-none resize-none text-slate-700 transition-all placeholder-slate-400 text-sm"
+                                  className="w-full h-32 p-4 bg-slate-50 rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-4 focus:ring-blue-50 outline-none resize-none text-slate-700 transition-all placeholder-slate-400 text-sm"
                                 />
                                 
                     
                                 <button 
                                   onClick={handleEvaluateAndCompare} 
                                   disabled={!userInputs[activeExercise]?.trim() || isEvaluating}
-                                  className={`w-full py-3 rounded-xl font-bold text-white shadow-md transition-all flex items-center justify-center gap-2 mt-auto
+                                  className={`w-full py-3 rounded-xl font-bold text-white shadow-md transition-colors flex items-center justify-center gap-2 mt-auto
                                   ${!userInputs[activeExercise]?.trim() || isEvaluating
                                   ? 'bg-slate-300 cursor-not-allowed' 
-                                  : 'bg-indigo-600 hover:bg-indigo-700 hover:-translate-y-0.5'}`}
+                                  : 'bg-blue-900 hover:bg-blue-950'}`}
                                   >
                                     {isEvaluating ? (
                                       <>
@@ -1057,11 +1057,11 @@ const GradingReport: React.FC<GradingReportProps> = ({
                        <button
                          onClick={handleNextExercise}
                          disabled={activeExercise === result.retraining.exercises.length - 1}
-                         className={`text-sm font-bold px-6 py-2 rounded-lg transition-all shadow-sm flex items-center gap-2
+                         className={`text-sm font-bold px-6 py-2 rounded-lg transition-colors shadow-sm flex items-center gap-2
                            ${activeExercise === result.retraining.exercises.length - 1
                              ? 'bg-slate-200 text-slate-400 cursor-not-allowed shadow-none' 
                              : showResult 
-                               ? 'bg-indigo-600 text-white hover:bg-indigo-700 hover:-translate-y-0.5 shadow-indigo-200'
+                               ? 'bg-blue-900 text-white hover:bg-blue-950'
                                : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'}`}
                        >
                          Next Challenge →
@@ -1083,7 +1083,7 @@ const GradingReport: React.FC<GradingReportProps> = ({
                     </h3>
                     <div className="flex gap-2">
                         <button onClick={() => handleCopyMaterials(result.retraining.materials)} className="text-xs bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded text-slate-600 font-bold transition-colors">{copyStatus === 'copied' ? 'Copied!' : 'Copy All'}</button>
-                        <button onClick={() => handleExportCSV(result.retraining.materials)} className="text-xs bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded text-indigo-700 font-bold transition-colors">Export CSV</button>
+                        <button onClick={() => handleExportCSV(result.retraining.materials)} className="text-xs bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded text-blue-900 font-bold transition-colors">Export CSV</button>
                     </div>
                 </div>
                 <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
@@ -1094,7 +1094,7 @@ const GradingReport: React.FC<GradingReportProps> = ({
                       <tbody className="divide-y divide-slate-100">
                          {result.retraining.materials.map((m, i) => (
                             <tr key={i} className="hover:bg-slate-50/50 transition-colors">
-                               <td className="px-6 py-4 font-bold text-indigo-700">{m.wordOrPhrase}</td>
+                               <td className="px-6 py-4 font-bold text-blue-900">{m.wordOrPhrase}</td>
                                <td className="px-6 py-4 text-slate-600">{m.definition}</td>
                                <td className="px-6 py-4 text-slate-500 italic font-serif">"{m.example}"</td>
                             </tr>

@@ -84,8 +84,8 @@ const ScoreLineChart: React.FC<{ data: HistoryItem[] }> = ({ data }) => {
         {/* Definitions for Gradient */}
         <defs>
           <linearGradient id="lineGradient" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="rgb(99, 102, 241)" stopOpacity="0.4" />
-            <stop offset="100%" stopColor="rgb(99, 102, 241)" stopOpacity="0" />
+            <stop offset="0%" stopColor="rgb(30, 58, 138)" stopOpacity="0.4" />
+            <stop offset="100%" stopColor="rgb(30, 58, 138)" stopOpacity="0" />
           </linearGradient>
         </defs>
 
@@ -104,7 +104,7 @@ const ScoreLineChart: React.FC<{ data: HistoryItem[] }> = ({ data }) => {
         <path d={areaD} fill="url(#lineGradient)" stroke="none" />
 
         {/* The Line */}
-        <path d={pathD} fill="none" stroke="#6366f1" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+        <path d={pathD} fill="none" stroke="#1e3a8a" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
 
         {/* Data Points */}
         {points.map((p, i) => (
@@ -113,10 +113,10 @@ const ScoreLineChart: React.FC<{ data: HistoryItem[] }> = ({ data }) => {
             <circle cx={p.x} cy={p.y} r="15" fill="transparent" />
             
             {/* Visible Dot */}
-            <circle cx={p.x} cy={p.y} r="4" fill="white" stroke="#6366f1" strokeWidth="2" className="transition-all duration-300 group-hover/point:r-6 group-hover/point:fill-indigo-600" />
+            <circle cx={p.x} cy={p.y} r="4" fill="white" stroke="#1e3a8a" strokeWidth="2" className="transition-all duration-300 group-hover/point:r-6 group-hover/point:fill-blue-900" />
             
             {/* Score Label (Above) */}
-            <text x={p.x} y={p.y - 12} textAnchor="middle" className="text-[10px] font-bold fill-indigo-600 opacity-0 group-hover/point:opacity-100 transition-opacity">
+            <text x={p.x} y={p.y - 12} textAnchor="middle" className="text-[10px] font-bold fill-blue-900 opacity-0 group-hover/point:opacity-100 transition-opacity">
               {p.score}
             </text>
 
@@ -554,12 +554,12 @@ const ProfileCenter: React.FC<ProfileCenterProps> = ({ isActive, onNavigate }) =
     <div className="animate-fade-in-up max-w-5xl mx-auto">
       {/* Header */}
       <div className="text-center mb-10">
-        <h2 className="text-3xl font-serif font-bold text-slate-800 mb-4">学习数据中心 <span className="text-blue-600">Learning Hub</span></h2>
+        <h2 className="text-3xl font-serif font-bold text-slate-800 mb-4">学习数据中心 <span className="text-blue-900">Learning Hub</span></h2>
         <p className="text-slate-500 text-lg">追踪你的每一次思考与进步</p>
       </div>
 
       {loading ? (
-        <div className="flex justify-center py-20"><div className="w-8 h-8 border-4 border-slate-200 border-t-brand-500 rounded-full animate-spin"></div></div>
+        <div className="flex justify-center py-20"><div className="w-8 h-8 border-4 border-slate-200 border-t-blue-900 rounded-full animate-spin"></div></div>
       ) : (
         <>
             {/* 1. Core Stats */}
@@ -575,7 +575,7 @@ const ProfileCenter: React.FC<ProfileCenterProps> = ({ isActive, onNavigate }) =
                {/* Left: Score History (Now using ScoreLineChart) */}
                <div className="md:col-span-3 bg-white rounded-2xl p-6 border border-slate-100 shadow-sm flex flex-col">
                   <div className="flex items-center gap-2 mb-6 pb-2 border-b border-slate-50">
-                    <div className="w-8 h-8 rounded-lg bg-indigo-100 text-indigo-600 flex items-center justify-center text-lg">📈</div>
+                    <div className="w-8 h-8 rounded-lg bg-blue-100 text-blue-900 flex items-center justify-center text-lg">📈</div>
                     <div>
                         <h3 className="font-bold text-slate-800">写作分数走势 (Score Trend)</h3>
                         <p className="text-[10px] text-slate-400 uppercase tracking-wider">Last 5 Essays (Max 15)</p>
@@ -591,7 +591,7 @@ const ProfileCenter: React.FC<ProfileCenterProps> = ({ isActive, onNavigate }) =
                {/* Right: Radar Chart */}
                <div className="md:col-span-2 bg-white rounded-2xl p-6 border border-slate-100 shadow-sm flex flex-col">
                   <div className="flex items-center gap-2 mb-2 pb-2 border-b border-slate-50">
-                    <div className="w-8 h-8 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center text-lg">🎯</div>
+                    <div className="w-8 h-8 rounded-lg bg-blue-100 text-blue-900 flex items-center justify-center text-lg">🎯</div>
                     <div><h3 className="font-bold text-slate-800">能力雷达 (Skill Radar)</h3><p className="text-[10px] text-slate-400 uppercase tracking-wider">Latest vs. Avg</p></div>
                   </div>
                   <div className="flex-grow flex flex-col justify-center items-center">
@@ -752,7 +752,7 @@ const ProfileCenter: React.FC<ProfileCenterProps> = ({ isActive, onNavigate }) =
 
             {/* 4. History List */}
             <div className="mb-12">
-                <h3 className="text-xl font-bold text-slate-800 mb-6 flex items-center gap-2"><span className="bg-blue-100 w-8 h-8 rounded-lg flex items-center justify-center text-base">🗂️</span>学习活动档案 (Activity Log)</h3>
+                <h3 className="text-xl font-bold text-slate-800 mb-6 flex items-center gap-2"><span className="bg-blue-100 text-blue-900 w-8 h-8 rounded-lg flex items-center justify-center text-base">🗂️</span>学习活动档案 (Activity Log)</h3>
                 {historyItems.length === 0 ? <div className="text-center py-10 bg-slate-50 rounded-2xl border border-slate-100 border-dashed"><p className="text-slate-400">暂无历史记录</p></div> : (
                     <>
                       <div className="space-y-4">
@@ -761,22 +761,22 @@ const ProfileCenter: React.FC<ProfileCenterProps> = ({ isActive, onNavigate }) =
                             const isClickable = item.dataType === 'scaffold' || item.dataType === 'essay_grade';
                             return (
                                 <div key={item.id} onClick={() => isClickable && handleItemClick(item)} className={`bg-white p-4 rounded-xl border border-slate-100 transition-all group relative overflow-hidden ${isClickable ? 'hover:shadow-md cursor-pointer hover:border-blue-200' : 'opacity-80'}`}>
-                                    {isClickable && <div className="absolute right-0 top-0 bottom-0 w-1 bg-blue-500 opacity-0 group-hover:opacity-100 transition-opacity"></div>}
+                                    {isClickable && <div className="absolute right-0 top-0 bottom-0 w-1 bg-blue-900 opacity-0 group-hover:opacity-100 transition-opacity"></div>}
                                     <div className="flex justify-between items-start">
                                         <div>
                                             <div className="flex items-center gap-2 mb-1">
                                                 <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${badge.style}`}>{badge.label}</span>
                                                 <span className="text-xs text-slate-400">{new Date(item.timestamp).toLocaleDateString()}</span>
                                             </div>
-                                            <h4 className="font-bold text-slate-700 group-hover:text-blue-600 transition-colors line-clamp-1">{item.topic || "Untitled Session"}</h4>
+                                            <h4 className="font-bold text-slate-700 group-hover:text-blue-900 transition-colors line-clamp-1">{item.topic || "Untitled Session"}</h4>
                                         </div>
                                         <div className="flex items-center gap-4">
                                             {item.dataType === 'essay_grade' && (item.data as any).result && (
                                                 <div className="text-right bg-slate-50 px-3 py-1 rounded-lg border border-slate-100">
-                                                    <div className="text-xl font-bold text-indigo-600 leading-none">{(item.data as any).result.totalScore}<span className="text-[10px] text-slate-400 font-normal ml-0.5">/15</span></div>
+                                                    <div className="text-xl font-bold text-blue-900 leading-none">{(item.data as any).result.totalScore}<span className="text-[10px] text-slate-400 font-normal ml-0.5">/15</span></div>
                                                 </div>
                                             )}
-                                            {isClickable && <span className="text-slate-300 group-hover:text-blue-500 transition-colors text-xl">→</span>}
+                                            {isClickable && <span className="text-slate-300 group-hover:text-blue-900 transition-colors text-xl">→</span>}
                                         </div>
                                     </div>
                                 </div>

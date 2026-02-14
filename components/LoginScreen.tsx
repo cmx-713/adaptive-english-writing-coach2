@@ -1,6 +1,8 @@
 
 import React, { useState } from 'react';
 import { User } from '../types';
+import { supabase } from '../services/supabaseClient';
+import { setCurrentUserId } from '../services/supabaseService';
 
 interface LoginScreenProps {
   onLogin: (user: User) => void;
@@ -10,14 +12,43 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
   const [name, setName] = useState('');
   const [studentId, setStudentId] = useState('');
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim() || !studentId.trim()) {
       setError('请输入姓名和学号');
       return;
     }
-    onLogin({ name: name.trim(), studentId: studentId.trim() });
+
+    setLoading(true);
+    setError('');
+
+    try {
+      // 调用安全的注册函数（绕过 RLS）
+      const { data, error } = await supabase.rpc('register_student', {
+        p_student_id: studentId.trim(),
+        p_name: name.trim(),
+        p_email: `${studentId.trim()}@temp.local`,
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      if (!data || data.length === 0) {
+        throw new Error('注册失败，请稍后重试');
+      }
+
+      const user = data[0];
+      setCurrentUserId(user.id);
+      onLogin({ name: user.name, studentId: user.student_id });
+    } catch (err: any) {
+      console.error('登录失败:', err);
+      setError(err.message || '登录失败，请稍后重试');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -65,9 +96,17 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
 
           <button
             type="submit"
-            className="w-full py-4 rounded-xl font-bold text-white bg-blue-900 hover:bg-blue-950 shadow-md transition-colors flex items-center justify-center gap-2 text-lg"
+            disabled={loading}
+            className="w-full py-4 rounded-xl font-bold text-white bg-blue-900 hover:bg-blue-950 shadow-md transition-colors flex items-center justify-center gap-2 text-lg disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            开始学习 (Start Learning)
+            {loading ? (
+              <>
+                <div className="w-5 h-5 border-3 border-white border-t-transparent rounded-full animate-spin"></div>
+                <span>登录中...</span>
+              </>
+            ) : (
+              '开始学习 (Start Learning)'
+            )}
           </button>
         </form>
         

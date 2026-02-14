@@ -11,21 +11,21 @@ const MODES: { id: DrillMode; label: string; icon: string; desc: string; color: 
     label: '语法门诊 (Grammar Doctor)', 
     icon: '🩺', 
     desc: '专治顽固语法错误，巩固语言准确性。',
-    color: 'from-rose-500 to-pink-500'
+    color: 'from-blue-700 to-blue-900'
   },
   { 
     id: 'elevation_lab', 
     label: '表达升格 (Elevation Lab)', 
     icon: '⚗️', 
     desc: '使用高级词汇替换平庸表达，提升学术感。',
-    color: 'from-blue-500 to-indigo-500'
+    color: 'from-blue-700 to-blue-900'
   },
   { 
     id: 'structure_architect', 
     label: '句式工坊 (Structure Architect)', 
     icon: '🏗️', 
     desc: '训练长难句合并与逻辑连接能力。',
-    color: 'from-emerald-500 to-teal-500'
+    color: 'from-blue-700 to-blue-900'
   },
 ];
 
@@ -112,7 +112,7 @@ const SentenceDrills: React.FC = () => {
       <div className="animate-fade-in-up max-w-4xl mx-auto pb-12">
          <div className="text-center mb-12">
             <h2 className="text-3xl font-serif font-bold text-slate-800 mb-4">
-              AI 自适应<span className="text-brand-600">特训系统</span>
+              AI 自适应<span className="text-blue-900">特训系统</span>
             </h2>
             <p className="text-slate-500 text-lg">
               基于你的作文批改历史生成的个性化刷题健身房。
@@ -129,7 +129,7 @@ const SentenceDrills: React.FC = () => {
               value={topic}
               onChange={(e) => setTopic(e.target.value)}
               placeholder="例如：科技、教育 (留空则生成通用题目)"
-              className="w-full px-4 py-3 rounded-xl border border-slate-200 text-center focus:border-brand-500 focus:ring-4 focus:ring-brand-50 outline-none transition-all"
+              className="w-full px-4 py-3 rounded-xl border border-slate-200 text-center focus:border-blue-500 focus:ring-4 focus:ring-blue-50 outline-none transition-all"
             />
          </div>
 
@@ -144,7 +144,7 @@ const SentenceDrills: React.FC = () => {
                  <div className="text-4xl mb-4 group-hover:scale-110 transition-transform duration-300 inline-block">{mode.icon}</div>
                  <h3 className="text-xl font-bold text-slate-800 mb-2">{mode.label}</h3>
                  <p className="text-slate-500 text-sm leading-relaxed">{mode.desc}</p>
-                 <div className="mt-6 flex items-center text-sm font-bold text-brand-600 opacity-0 group-hover:opacity-100 transition-opacity">
+                 <div className="mt-6 flex items-center text-sm font-bold text-blue-900 opacity-0 group-hover:opacity-100 transition-opacity">
                     开始训练 →
                  </div>
               </button>

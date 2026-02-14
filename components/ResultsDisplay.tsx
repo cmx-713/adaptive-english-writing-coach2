@@ -407,11 +407,11 @@ ${data.frames.map(f => `[${f.patternName}] ${f.patternNameZh}\nTemplate: ${f.tem
         {/* RIGHT COLUMN: Sandbox (Sticky) */}
         <div className="lg:col-span-5 xl:col-span-4 sticky top-6">
           <div className="bg-white rounded-2xl shadow-xl border border-slate-100 overflow-hidden flex flex-col max-h-[calc(100vh-3rem)]">
-             <div className="bg-gradient-to-r from-indigo-50 to-purple-50 px-6 py-4 border-b border-indigo-100 flex-shrink-0">
-               <h3 className="font-serif font-bold text-lg text-indigo-900 flex items-center gap-2">
-                 <span className="text-indigo-600">Writing Sandbox</span> 实战演练
+             <div className="bg-blue-50 px-6 py-4 border-b border-blue-200 flex-shrink-0">
+               <h3 className="font-serif font-bold text-lg text-blue-900 flex items-center gap-2">
+                 <span className="text-blue-800">Writing Sandbox</span> 实战演练
                </h3>
-               <p className="text-xs text-indigo-400 mt-1">
+               <p className="text-xs text-blue-600 mt-1">
                  Ready? Use materials on the left (Click to insert).
                </p>
              </div>
@@ -419,7 +419,7 @@ ${data.frames.map(f => `[${f.patternName}] ${f.patternNameZh}\nTemplate: ${f.tem
              <div className="p-4 overflow-y-auto custom-scrollbar flex-grow">
                <textarea
                  ref={textareaRef}
-                 className="w-full h-48 p-4 rounded-xl border border-slate-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 outline-none resize-none transition-all text-slate-700 placeholder-slate-400 text-sm leading-relaxed"
+                 className="w-full h-48 p-4 rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none resize-none transition-all text-slate-700 placeholder-slate-400 text-sm leading-relaxed"
                  placeholder="Start writing your paragraph here (50-100 words)..."
                  value={draft}
                  onChange={(e) => setDraft(e.target.value)}
@@ -429,10 +429,10 @@ ${data.frames.map(f => `[${f.patternName}] ${f.patternNameZh}\nTemplate: ${f.tem
                  <button 
                    onClick={handleAnalyzeDraft}
                    disabled={isAnalyzing || !draft.trim()}
-                   className={`px-4 py-2 rounded-lg font-bold text-white text-sm shadow-md transition-all flex items-center gap-2
+                   className={`px-4 py-2 rounded-lg font-bold text-white text-sm shadow-md transition-colors flex items-center gap-2
                      ${isAnalyzing || !draft.trim() 
                        ? 'bg-slate-300 cursor-not-allowed' 
-                       : 'bg-indigo-600 hover:bg-indigo-700 hover:-translate-y-0.5'}`}
+                       : 'bg-blue-900 hover:bg-blue-950'}`}
                  >
                    {isAnalyzing ? 'Analyzing...' : '📝 Check My Draft'}
                  </button>
@@ -440,24 +440,24 @@ ${data.frames.map(f => `[${f.patternName}] ${f.patternNameZh}\nTemplate: ${f.tem
 
                {/* Collapsible Feedback Display */}
                {feedback && (
-                 <div ref={feedbackRef} className="mt-6 border border-indigo-100 rounded-xl overflow-hidden animate-fade-in-up">
+                 <div ref={feedbackRef} className="mt-6 border border-blue-100 rounded-xl overflow-hidden animate-fade-in-up">
                    {/* Header / Toggle */}
                    <div 
                       onClick={() => setIsFeedbackExpanded(!isFeedbackExpanded)}
-                      className="bg-indigo-50 p-3 flex justify-between items-center cursor-pointer hover:bg-indigo-100 transition-colors"
+                      className="bg-blue-50 p-3 flex justify-between items-center cursor-pointer hover:bg-blue-100 transition-colors"
                    >
                       <div className="flex items-center gap-3">
-                         <span className="text-xl font-bold text-indigo-600">{feedback.score}<span className="text-xs text-indigo-400">/10</span></span>
-                         <span className="text-xs font-bold text-indigo-800 uppercase">Coach's Feedback</span>
+                         <span className="text-xl font-bold text-blue-900">{feedback.score}<span className="text-xs text-blue-600">/10</span></span>
+                         <span className="text-xs font-bold text-blue-900 uppercase">Coach's Feedback</span>
                       </div>
-                      <span className={`text-indigo-400 transform transition-transform duration-200 ${isFeedbackExpanded ? 'rotate-180' : 'rotate-0'}`}>▼</span>
+                      <span className={`text-blue-600 transform transition-transform duration-200 ${isFeedbackExpanded ? 'rotate-180' : 'rotate-0'}`}>▼</span>
                    </div>
                    
                    {/* Expandable Body */}
                    {isFeedbackExpanded && (
                      <div className="p-4 space-y-4 bg-white">
                         {/* Comment */}
-                        <p className="text-xs text-slate-600 leading-relaxed italic border-l-2 border-indigo-200 pl-3">
+                        <p className="text-xs text-slate-600 leading-relaxed italic border-l-2 border-blue-200 pl-3">
                           "{feedback.comment}"
                         </p>
 
@@ -622,11 +622,11 @@ const InteractiveFrame: React.FC<{ frame: SentenceFrame, topic: string }> = ({ f
   };
 
   return (
-    <div className="p-4 bg-indigo-50/30 rounded-xl border border-indigo-100 text-sm text-slate-800 leading-relaxed shadow-sm">
+    <div className="p-4 bg-blue-50/30 rounded-xl border border-blue-100 text-sm text-slate-800 leading-relaxed shadow-sm">
       {/* Frame Header: Pattern Name */}
-      <div className="flex items-center gap-2 mb-3 pb-2 border-b border-indigo-100/60">
-        <span className="text-indigo-500 text-base">🏗️</span>
-        <span className="font-bold text-indigo-700 text-xs">{frame.patternName}</span>
+      <div className="flex items-center gap-2 mb-3 pb-2 border-b border-blue-100/60">
+        <span className="text-blue-700 text-base">🏗️</span>
+        <span className="font-bold text-blue-900 text-xs">{frame.patternName}</span>
         <span className="text-slate-400 text-xs">—</span>
         <span className="text-slate-600 text-xs">{frame.patternNameZh}</span>
       </div>
@@ -643,7 +643,7 @@ const InteractiveFrame: React.FC<{ frame: SentenceFrame, topic: string }> = ({ f
                  placeholder={placeholderText}
                  value={inputs[i] || ''}
                  onChange={(e) => handleInputChange(i, e.target.value)}
-                 className="mx-1 px-2 py-1 rounded border border-brand-200 focus:border-brand-500 focus:ring-2 focus:ring-brand-200 outline-none text-brand-700 font-bold bg-white min-w-[100px] placeholder-brand-300/70 text-sm"
+                 className="mx-1 px-2 py-1 rounded border border-blue-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none text-blue-900 font-bold bg-white min-w-[100px] placeholder-blue-300/70 text-sm"
                  style={{ width: `${Math.max(100, placeholderText.length * 16)}px` }}
                />
              );
@@ -657,7 +657,7 @@ const InteractiveFrame: React.FC<{ frame: SentenceFrame, topic: string }> = ({ f
          <button 
            onClick={handleCheck}
            disabled={isChecking}
-           className="text-xs bg-indigo-100 hover:bg-indigo-200 text-indigo-700 px-4 py-1.5 rounded-full font-medium transition-colors flex items-center gap-1"
+           className="text-xs bg-blue-100 hover:bg-blue-200 text-blue-900 px-4 py-1.5 rounded-full font-medium transition-colors flex items-center gap-1"
          >
            {isChecking ? '正在检查...' : '✨ 检查 (Check)'}
          </button>
@@ -676,7 +676,7 @@ const InteractiveFrame: React.FC<{ frame: SentenceFrame, topic: string }> = ({ f
                 </p>
                 {validation.suggestion && (
                   <p className="text-xs text-slate-600 mt-1.5 pt-1.5 border-t border-slate-100">
-                    <span className="font-bold text-indigo-600">💡 建议：</span>{validation.suggestion}
+                    <span className="font-bold text-blue-900">💡 建议：</span>{validation.suggestion}
                   </p>
                 )}
               </div>

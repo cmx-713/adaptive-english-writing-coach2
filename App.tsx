@@ -103,7 +103,7 @@ const App: React.FC = () => {
               onClick={() => setActiveTab('coach')}
               className={`px-6 py-2.5 rounded-lg text-lg font-bold transition-all ${
                 activeTab === 'coach'
-                  ? 'bg-white text-brand-600 shadow-sm ring-1 ring-black/5'
+                  ? 'bg-white text-blue-900 shadow-sm ring-1 ring-black/5'
                   : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'
               }`}
             >
@@ -113,7 +113,7 @@ const App: React.FC = () => {
               onClick={() => setActiveTab('grader')}
               className={`px-6 py-2.5 rounded-lg text-lg font-bold transition-all ${
                 activeTab === 'grader'
-                  ? 'bg-white text-indigo-600 shadow-sm ring-1 ring-black/5'
+                  ? 'bg-white text-blue-900 shadow-sm ring-1 ring-black/5'
                   : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'
               }`}
             >
@@ -123,7 +123,7 @@ const App: React.FC = () => {
               onClick={() => setActiveTab('drills')}
               className={`px-6 py-2.5 rounded-lg text-lg font-bold transition-all ${
                 activeTab === 'drills'
-                  ? 'bg-white text-emerald-600 shadow-sm ring-1 ring-black/5'
+                  ? 'bg-white text-blue-900 shadow-sm ring-1 ring-black/5'
                   : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'
               }`}
             >
@@ -133,7 +133,7 @@ const App: React.FC = () => {
               onClick={() => setActiveTab('profile')}
               className={`px-6 py-2.5 rounded-lg text-lg font-bold transition-all ${
                 activeTab === 'profile'
-                  ? 'bg-white text-blue-600 shadow-sm ring-1 ring-black/5'
+                  ? 'bg-white text-blue-900 shadow-sm ring-1 ring-black/5'
                   : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'
               }`}
             >
@@ -173,7 +173,7 @@ const App: React.FC = () => {
             <button
               onClick={() => setActiveTab('coach')}
               className={`px-4 py-2.5 rounded-lg text-sm font-bold transition-all shadow-sm ${
-                activeTab === 'coach' ? 'bg-brand-50 text-brand-700 border border-brand-200' : 'text-slate-500 bg-white border border-slate-100'
+                activeTab === 'coach' ? 'bg-blue-50 text-blue-900 border border-blue-200' : 'text-slate-500 bg-white border border-slate-100'
               }`}
             >
               🧠 思维训练
@@ -181,7 +181,7 @@ const App: React.FC = () => {
             <button
               onClick={() => setActiveTab('grader')}
               className={`px-4 py-2.5 rounded-lg text-sm font-bold transition-all shadow-sm ${
-                activeTab === 'grader' ? 'bg-indigo-50 text-indigo-700 border border-indigo-200' : 'text-slate-500 bg-white border border-slate-100'
+                activeTab === 'grader' ? 'bg-blue-50 text-blue-900 border border-blue-200' : 'text-slate-500 bg-white border border-slate-100'
               }`}
             >
               ✍️ 作文批改
@@ -189,7 +189,7 @@ const App: React.FC = () => {
             <button
               onClick={() => setActiveTab('drills')}
               className={`px-4 py-2.5 rounded-lg text-sm font-bold transition-all shadow-sm ${
-                activeTab === 'drills' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'text-slate-500 bg-white border border-slate-100'
+                activeTab === 'drills' ? 'bg-blue-50 text-blue-900 border border-blue-200' : 'text-slate-500 bg-white border border-slate-100'
               }`}
             >
               🏋️ 句子特训
@@ -197,7 +197,7 @@ const App: React.FC = () => {
             <button
               onClick={() => setActiveTab('profile')}
               className={`px-4 py-2.5 rounded-lg text-sm font-bold transition-all shadow-sm ${
-                activeTab === 'profile' ? 'bg-blue-50 text-blue-700 border border-blue-200' : 'text-slate-500 bg-white border border-slate-100'
+                activeTab === 'profile' ? 'bg-blue-50 text-blue-900 border border-blue-200' : 'text-slate-500 bg-white border border-slate-100'
               }`}
             >
               📊 学习中心

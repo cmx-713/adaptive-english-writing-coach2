@@ -250,11 +250,11 @@ const SocraticCoach: React.FC<SocraticCoachProps> = ({ onSendToGrader }) => {
       <div className="flex justify-end gap-3 mb-6 no-print">
          <button 
            onClick={() => setIsHistoryOpen(true)}
-           className="text-sm font-medium text-slate-500 hover:text-brand-600 transition-colors flex items-center gap-1 bg-white px-3 py-1.5 rounded-lg border border-slate-200 shadow-sm"
+           className="text-sm font-medium text-slate-500 hover:text-blue-900 transition-colors flex items-center gap-1 bg-white px-3 py-1.5 rounded-lg border border-slate-200 shadow-sm"
          >
            <span>📂</span> History
          </button>
-         <button onClick={resetApp} className="text-sm font-medium text-white bg-brand-600 px-3 py-1.5 rounded-lg hover:bg-brand-700 transition-colors shadow-sm">
+         <button onClick={resetApp} className="text-sm font-medium text-white bg-blue-900 px-3 py-1.5 rounded-lg hover:bg-blue-950 transition-colors shadow-sm">
            + New Topic
          </button>
       </div>
@@ -263,7 +263,7 @@ const SocraticCoach: React.FC<SocraticCoachProps> = ({ onSendToGrader }) => {
       {flowState === 'input_topic' && (
         <div className="text-center mb-10 max-w-2xl mx-auto animate-fade-in-up no-print">
           <h2 className="text-3xl font-serif font-bold text-slate-800 mb-4">
-            苏格拉底式<br className="md:hidden" /><span className="text-brand-600">写作思维训练</span>
+            苏格拉底式<br className="md:hidden" /><span className="text-blue-900">写作思维训练</span>
           </h2>
           <p className="text-slate-600 text-lg leading-relaxed mb-8">
             "Thinking before Scaffolding" - 我们不直接给答案，而是通过启发提问引导你构建论据，再提供地道的语言支持。
@@ -346,18 +346,18 @@ const SocraticCoach: React.FC<SocraticCoachProps> = ({ onSendToGrader }) => {
               
               {/* === Introduction === */}
               <div className="border-b border-slate-100">
-                <div className="bg-blue-50 px-6 py-3 border-b border-blue-100">
+                <div className="bg-blue-50 px-6 py-3 border-b border-blue-200">
                   <div className="flex items-center gap-2">
-                    <span className="text-blue-500 text-sm">🏁</span>
-                    <span className="text-xs font-bold text-blue-600 uppercase tracking-wider">引言 (Introduction)</span>
-                    <span className="text-[10px] text-blue-400 ml-auto">请自己尝试写作</span>
+                    <span className="text-blue-700 text-sm">🏁</span>
+                    <span className="text-xs font-bold text-blue-900 uppercase tracking-wider">引言 (Introduction)</span>
+                    <span className="text-[10px] text-blue-600 ml-auto">请自己尝试写作</span>
                   </div>
                 </div>
                 <div className="p-6 space-y-3">
                   {/* 写作提示 */}
-                  <div className="bg-blue-50/50 rounded-lg p-3 border border-blue-100/60">
-                    <p className="text-xs font-bold text-blue-500 mb-1.5">📝 写作提示</p>
-                    <ul className="text-xs text-blue-700/80 space-y-1 list-disc list-inside">
+                  <div className="bg-blue-50/50 rounded-lg p-3 border border-blue-100">
+                    <p className="text-xs font-bold text-blue-700 mb-1.5">📝 写作提示</p>
+                    <ul className="text-xs text-blue-900/80 space-y-1 list-disc list-inside">
                       <li>用 1-2 句话引出话题（可用提问、现象描述或名言引入）</li>
                       <li>简要说明你将讨论哪几个方面，为正文做铺垫</li>
                     </ul>
@@ -375,18 +375,18 @@ const SocraticCoach: React.FC<SocraticCoachProps> = ({ onSendToGrader }) => {
                     <button
                       onClick={() => handleLoadAiReference('intro')}
                       disabled={isLoadingReference}
-                      className="text-xs text-blue-400 hover:text-blue-600 underline decoration-blue-200 hover:decoration-blue-400 transition-colors flex items-center gap-1"
+                      className="text-xs text-blue-600 hover:text-blue-800 underline decoration-blue-200 hover:decoration-blue-400 transition-colors flex items-center gap-1"
                     >
                       {isLoadingReference ? '正在生成范例...' : '💡 写不出来？看看AI范例'}
                     </button>
                   ) : aiReference && (
                     <div className="bg-blue-50 rounded-lg p-3 border border-blue-200 animate-fade-in-up">
                       <div className="flex items-center justify-between mb-1.5">
-                        <p className="text-[10px] font-bold text-blue-500 uppercase tracking-wider">📖 AI 参考范例</p>
-                        <button onClick={() => setShowIntroRef(false)} className="text-[10px] text-blue-400 hover:text-blue-600 underline">收起</button>
+                        <p className="text-[10px] font-bold text-blue-700 uppercase tracking-wider">📖 AI 参考范例</p>
+                        <button onClick={() => setShowIntroRef(false)} className="text-[10px] text-blue-600 hover:text-blue-800 underline">收起</button>
                       </div>
-                      <p className="text-xs text-blue-800 leading-relaxed italic">"{aiReference.introduction}"</p>
-                      <p className="text-[10px] text-blue-400 mt-2">提示：请参考思路和结构，用自己的话重新表达</p>
+                      <p className="text-xs text-blue-900 leading-relaxed italic">"{aiReference.introduction}"</p>
+                      <p className="text-[10px] text-blue-600 mt-2">提示：请参考思路和结构，用自己的话重新表达</p>
                     </div>
                   )}
                 </div>
@@ -395,13 +395,13 @@ const SocraticCoach: React.FC<SocraticCoachProps> = ({ onSendToGrader }) => {
               {/* === Body Paragraphs === */}
               {assembledEssay.bodyParagraphs.map((para, i) => (
                 <div key={i} className="border-b border-slate-100">
-                  <div className="bg-emerald-50 px-6 py-3 border-b border-emerald-100">
+                  <div className="bg-slate-100 px-6 py-3 border-b border-slate-200">
                     <div className="flex items-center gap-2">
-                      <span className="text-emerald-500 text-sm">📖</span>
-                      <span className="text-xs font-bold text-emerald-600 uppercase tracking-wider">
+                      <span className="text-slate-600 text-sm">📖</span>
+                      <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">
                         正文段落 {i + 1} — {para.dimension}
                       </span>
-                      <span className="text-[10px] text-emerald-400 ml-auto">你的原创段落</span>
+                      <span className="text-[10px] text-slate-500 ml-auto">你的原创段落</span>
                     </div>
                   </div>
                   <div className="p-6">
@@ -415,7 +415,7 @@ const SocraticCoach: React.FC<SocraticCoachProps> = ({ onSendToGrader }) => {
                           return { ...prev, bodyParagraphs: newBody };
                         });
                       }}
-                      className="w-full p-4 rounded-xl border border-slate-200 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 outline-none resize-none text-slate-700 leading-relaxed text-sm min-h-[120px]"
+                      className="w-full p-4 rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none resize-none text-slate-700 leading-relaxed text-sm min-h-[120px]"
                     />
                   </div>
                 </div>
@@ -423,18 +423,18 @@ const SocraticCoach: React.FC<SocraticCoachProps> = ({ onSendToGrader }) => {
 
               {/* === Conclusion === */}
               <div>
-                <div className="bg-purple-50 px-6 py-3 border-b border-purple-100">
+                <div className="bg-blue-50 px-6 py-3 border-b border-blue-200">
                   <div className="flex items-center gap-2">
-                    <span className="text-purple-500 text-sm">🎯</span>
-                    <span className="text-xs font-bold text-purple-600 uppercase tracking-wider">结论 (Conclusion)</span>
-                    <span className="text-[10px] text-purple-400 ml-auto">请自己尝试写作</span>
+                    <span className="text-blue-700 text-sm">🎯</span>
+                    <span className="text-xs font-bold text-blue-900 uppercase tracking-wider">结论 (Conclusion)</span>
+                    <span className="text-[10px] text-blue-600 ml-auto">请自己尝试写作</span>
                   </div>
                 </div>
                 <div className="p-6 space-y-3">
                   {/* 写作提示 */}
-                  <div className="bg-purple-50/50 rounded-lg p-3 border border-purple-100/60">
-                    <p className="text-xs font-bold text-purple-500 mb-1.5">📝 写作提示</p>
-                    <ul className="text-xs text-purple-700/80 space-y-1 list-disc list-inside">
+                  <div className="bg-blue-50/50 rounded-lg p-3 border border-blue-100">
+                    <p className="text-xs font-bold text-blue-700 mb-1.5">📝 写作提示</p>
+                    <ul className="text-xs text-blue-900/80 space-y-1 list-disc list-inside">
                       <li>用 1 句话总结以上论点的核心观点</li>
                       <li>给出你的最终立场、建议或展望</li>
                     </ul>
@@ -443,7 +443,7 @@ const SocraticCoach: React.FC<SocraticCoachProps> = ({ onSendToGrader }) => {
                   <textarea
                     value={assembledEssay.conclusion}
                     onChange={(e) => setAssembledEssay(prev => prev ? { ...prev, conclusion: e.target.value } : null)}
-                    className="w-full p-4 rounded-xl border border-slate-200 focus:border-purple-500 focus:ring-2 focus:ring-purple-100 outline-none resize-none text-slate-700 leading-relaxed text-sm min-h-[100px]"
+                    className="w-full p-4 rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none resize-none text-slate-700 leading-relaxed text-sm min-h-[100px]"
                     placeholder="Try writing your conclusion here..."
                   />
 
@@ -452,18 +452,18 @@ const SocraticCoach: React.FC<SocraticCoachProps> = ({ onSendToGrader }) => {
                     <button
                       onClick={() => handleLoadAiReference('conclusion')}
                       disabled={isLoadingReference}
-                      className="text-xs text-purple-400 hover:text-purple-600 underline decoration-purple-200 hover:decoration-purple-400 transition-colors flex items-center gap-1"
+                      className="text-xs text-blue-600 hover:text-blue-800 underline decoration-blue-200 hover:decoration-blue-400 transition-colors flex items-center gap-1"
                     >
                       {isLoadingReference ? '正在生成范例...' : '💡 写不出来？看看AI范例'}
                     </button>
                   ) : aiReference && (
-                    <div className="bg-purple-50 rounded-lg p-3 border border-purple-200 animate-fade-in-up">
+                    <div className="bg-blue-50 rounded-lg p-3 border border-blue-200 animate-fade-in-up">
                       <div className="flex items-center justify-between mb-1.5">
-                        <p className="text-[10px] font-bold text-purple-500 uppercase tracking-wider">📖 AI 参考范例</p>
-                        <button onClick={() => setShowConclusionRef(false)} className="text-[10px] text-purple-400 hover:text-purple-600 underline">收起</button>
+                        <p className="text-[10px] font-bold text-blue-700 uppercase tracking-wider">📖 AI 参考范例</p>
+                        <button onClick={() => setShowConclusionRef(false)} className="text-[10px] text-blue-600 hover:text-blue-800 underline">收起</button>
                       </div>
-                      <p className="text-xs text-purple-800 leading-relaxed italic">"{aiReference.conclusion}"</p>
-                      <p className="text-[10px] text-purple-400 mt-2">提示：请参考思路和结构，用自己的话重新表达</p>
+                      <p className="text-xs text-blue-900 leading-relaxed italic">"{aiReference.conclusion}"</p>
+                      <p className="text-[10px] text-blue-600 mt-2">提示：请参考思路和结构，用自己的话重新表达</p>
                     </div>
                   )}
                 </div>
@@ -490,7 +490,7 @@ const SocraticCoach: React.FC<SocraticCoachProps> = ({ onSendToGrader }) => {
                 {onSendToGrader && (
                   <button
                     onClick={handleSendToGrader}
-                    className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-sm shadow-lg hover:shadow-indigo-500/30 transition-all hover:-translate-y-0.5 flex items-center gap-2"
+                    className="px-6 py-3 bg-blue-900 hover:bg-blue-950 text-white rounded-xl font-bold text-sm shadow-md transition-colors flex items-center gap-2"
                   >
                     <span>🚀</span> 发送到作文批改 (Submit to Grader)
                   </button>

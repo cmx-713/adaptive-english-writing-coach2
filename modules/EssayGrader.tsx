@@ -173,7 +173,7 @@ const EssayGrader: React.FC<EssayGraderProps> = ({ prefillData, onPrefillConsume
          <div className="flex justify-end gap-3 mb-6 no-print">
             <button 
               onClick={() => setIsHistoryOpen(true)}
-              className="text-sm font-medium text-slate-500 hover:text-brand-600 transition-colors flex items-center gap-1 bg-white px-3 py-1.5 rounded-lg border border-slate-200 shadow-sm"
+              className="text-sm font-medium text-slate-500 hover:text-blue-900 transition-colors flex items-center gap-1 bg-white px-3 py-1.5 rounded-lg border border-slate-200 shadow-sm"
             >
               <span>📂</span> Graded Essays History
             </button>
@@ -181,7 +181,7 @@ const EssayGrader: React.FC<EssayGraderProps> = ({ prefillData, onPrefillConsume
 
          <div className="text-center mb-10">
           <h2 className="text-3xl font-serif font-bold text-slate-800 mb-4">
-            AI 智能作文<span className="text-indigo-600">阅卷系统</span>
+            AI 智能作文<span className="text-blue-900">阅卷系统</span>
           </h2>
           <p className="text-slate-500 text-lg">
             资深教授 1v1 诊断 · 三色痛点分类 · 升格对比教学
@@ -198,7 +198,7 @@ const EssayGrader: React.FC<EssayGraderProps> = ({ prefillData, onPrefillConsume
                   value={topic}
                   onChange={(e) => setTopic(e.target.value)}
                   placeholder="e.g., The Importance of Traditional Culture"
-                  className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 outline-none transition-all"
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-none transition-all"
                 />
               </div>
 
@@ -215,7 +215,7 @@ const EssayGrader: React.FC<EssayGraderProps> = ({ prefillData, onPrefillConsume
                   value={essayText}
                   onChange={(e) => setEssayText(e.target.value)}
                   placeholder="在此粘贴或输入你的英语作文..."
-                  className={`w-full h-64 p-4 rounded-xl border focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 outline-none resize-none transition-all text-slate-700 leading-relaxed custom-scrollbar font-sans
+                  className={`w-full h-64 p-4 rounded-xl border focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-none resize-none transition-all text-slate-700 leading-relaxed custom-scrollbar font-sans
                     ${isTimerActive ? 'border-rose-200 bg-rose-50/10' : 'border-slate-200'}`}
                 />
               </div>
@@ -233,10 +233,10 @@ const EssayGrader: React.FC<EssayGraderProps> = ({ prefillData, onPrefillConsume
               <button
                 onClick={handleGrade}
                 disabled={isGrading || !essayText.trim()}
-                className={`w-full py-4 rounded-xl font-bold text-white text-lg shadow-lg transition-all flex items-center justify-center gap-2
+                className={`w-full py-4 rounded-xl font-bold text-white text-lg shadow-md transition-colors flex items-center justify-center gap-2
                   ${isGrading || !essayText.trim()
                     ? 'bg-slate-300 cursor-not-allowed'
-                    : 'bg-indigo-600 hover:bg-indigo-700 hover:-translate-y-0.5 hover:shadow-indigo-500/30'}`}
+                    : 'bg-blue-900 hover:bg-blue-950'}`}
               >
                 {isGrading ? (
                   <>

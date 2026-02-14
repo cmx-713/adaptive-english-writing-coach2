@@ -564,9 +564,9 @@ const ProfileCenter: React.FC<ProfileCenterProps> = ({ isActive, onNavigate }) =
         <>
             {/* 1. Core Stats */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                <StatCard icon="🧠" label="思维训练" value={stats.socraticCount} colorClass="bg-brand-50 text-brand-600" desc="Topics Explored" />
-                <StatCard icon="✍️" label="作文批改" value={stats.graderCount} colorClass="bg-indigo-50 text-indigo-600" desc="Essays Graded" />
-                <StatCard icon="🏋️" label="句子特训" value={stats.drillCount} colorClass="bg-emerald-50 text-emerald-600" desc="Skills Mastered" />
+                <StatCard icon="🧠" label="思维训练" value={stats.socraticCount} colorClass="bg-blue-50 text-blue-800" desc="Topics Explored" />
+                <StatCard icon="✍️" label="作文批改" value={stats.graderCount} colorClass="bg-blue-50 text-blue-800" desc="Essays Graded" />
+                <StatCard icon="🏋️" label="句子特训" value={stats.drillCount} colorClass="bg-blue-50 text-blue-800" desc="Skills Mastered" />
             </div>
 
             {/* 2. Progress Tracking (Charts) */}

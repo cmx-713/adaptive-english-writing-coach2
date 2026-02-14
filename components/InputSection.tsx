@@ -37,7 +37,7 @@ const InputSection: React.FC<InputSectionProps> = ({ onSubmit, isLoading }) => {
   return (
     <div className="bg-white rounded-2xl shadow-xl p-6 md:p-8 mb-8 border border-slate-100 relative overflow-hidden">
       {/* Decorative background element */}
-      <div className="absolute top-0 right-0 -mt-4 -mr-4 w-24 h-24 bg-brand-50 rounded-full blur-2xl opacity-50"></div>
+      <div className="absolute top-0 right-0 -mt-4 -mr-4 w-24 h-24 bg-blue-50 rounded-full blur-2xl opacity-50"></div>
 
       <div className="mb-6 text-center">
         <h2 className="text-2xl font-serif font-bold text-slate-800 mb-2">Topic Analysis</h2>
@@ -52,7 +52,7 @@ const InputSection: React.FC<InputSectionProps> = ({ onSubmit, isLoading }) => {
             value={topic}
             onChange={(e) => setTopic(e.target.value)}
             placeholder="例如：The Impact of Social Media"
-            className="w-full pl-6 pr-12 py-4 rounded-xl border border-slate-200 shadow-sm focus:border-brand-500 focus:ring-4 focus:ring-brand-100 transition-all outline-none text-lg text-slate-800 placeholder-slate-400"
+            className="w-full pl-6 pr-12 py-4 rounded-xl border border-slate-200 shadow-sm focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition-all outline-none text-lg text-slate-800 placeholder-slate-400"
             disabled={isLoading}
             required
             autoComplete="off"
@@ -73,7 +73,7 @@ const InputSection: React.FC<InputSectionProps> = ({ onSubmit, isLoading }) => {
             type="button"
             onClick={handleRandomTopic}
             disabled={isLoading}
-            className="px-6 py-3 rounded-xl font-medium text-brand-600 bg-brand-50 border border-brand-100 hover:bg-brand-100 transition-all flex items-center justify-center gap-2"
+            className="px-6 py-3 rounded-xl font-medium text-blue-900 bg-blue-50 border border-blue-100 hover:bg-blue-100 transition-all flex items-center justify-center gap-2"
           >
             <span>📚</span> 试一试真题
           </button>
@@ -81,10 +81,10 @@ const InputSection: React.FC<InputSectionProps> = ({ onSubmit, isLoading }) => {
           <button
             type="submit"
             disabled={isLoading || !topic}
-            className={`px-8 py-3 rounded-xl font-bold text-white shadow-md transform transition-all duration-300 flex items-center justify-center gap-2 group min-w-[160px]
+            className={`px-8 py-3 rounded-xl font-bold text-white shadow-md transition-colors flex items-center justify-center gap-2 group min-w-[160px]
               ${isLoading 
                 ? 'bg-slate-400 cursor-not-allowed' 
-                : 'bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 hover:-translate-y-0.5 hover:shadow-lg'
+                : 'bg-blue-900 hover:bg-blue-950'
               }`}
           >
             <span className="text-xl transition-transform duration-500 group-hover:rotate-180">🎲</span>

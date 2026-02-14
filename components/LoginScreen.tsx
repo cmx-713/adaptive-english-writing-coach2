@@ -25,7 +25,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
       <div className="bg-white max-w-md w-full rounded-2xl shadow-xl border border-slate-100 p-8 animate-fade-in-up">
         
         <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-gradient-to-br from-indigo-600 to-blue-500 rounded-2xl flex items-center justify-center text-white font-serif font-bold text-3xl shadow-lg mx-auto mb-4">
+          <div className="w-16 h-16 bg-blue-900 rounded-xl flex items-center justify-center text-white font-serif font-bold text-3xl shadow-md border-2 border-blue-800 mx-auto mb-4">
             C
           </div>
           <h1 className="text-2xl font-serif font-bold text-slate-800">CET-4/6 Writing Coach</h1>
@@ -65,7 +65,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
 
           <button
             type="submit"
-            className="w-full py-4 rounded-xl font-bold text-white bg-indigo-600 hover:bg-indigo-700 shadow-lg hover:shadow-indigo-500/30 hover:-translate-y-0.5 transition-all flex items-center justify-center gap-2 text-lg"
+            className="w-full py-4 rounded-xl font-bold text-white bg-blue-900 hover:bg-blue-950 shadow-md transition-colors flex items-center justify-center gap-2 text-lg"
           >
             开始学习 (Start Learning)
           </button>

@@ -4,6 +4,7 @@ export interface VocabularyItem {
   chinese: string;
   englishDefinition: string;
   usage: string;
+  usageChinese: string;
 }
 
 export interface CollocationItem {

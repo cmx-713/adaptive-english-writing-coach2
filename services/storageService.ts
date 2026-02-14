@@ -1,5 +1,5 @@
 
-import { HistoryItem, ScaffoldContent, EssayHistoryData, HistoryDataType, InspirationHistoryData, DrillHistoryData, AggregatedError } from "../types";
+import { HistoryItem, ScaffoldContent, EssayHistoryData, HistoryDataType, InspirationHistoryData, DrillHistoryData, AggregatedError, VocabularyItem } from "../types";
 
 const STORAGE_KEY = "cet_writing_history_v2";
 
@@ -155,18 +155,49 @@ export const getAggregatedUserErrors = (limit: number = 10): AggregatedError[] =
   return allErrors.sort(() => 0.5 - Math.random()).slice(0, limit);
 };
 
-export const getAggregatedUserVocab = (limit: number = 10): string[] => {
+export const getAggregatedUserVocab = (limit: number = 10): VocabularyItem[] => {
   const history = getHistory('scaffold');
-  const allVocab: string[] = [];
+  const vocabMap = new Map<string, VocabularyItem>(); // 使用Map去重
 
   history.forEach(item => {
     const data = item.data as ScaffoldContent;
     if (data.vocabulary) {
-        const words = data.vocabulary.map(v => v.word);
-        allVocab.push(...words);
+        data.vocabulary.forEach(vocab => {
+          // 只保留第一次出现的词汇（或最新的，取决于需求）
+          if (!vocabMap.has(vocab.word.toLowerCase())) {
+            vocabMap.set(vocab.word.toLowerCase(), vocab);
+          }
+        });
     }
   });
 
-  // Shuffle and take top N
+  // 转换为数组，打乱顺序，取前N个
+  const allVocab = Array.from(vocabMap.values());
   return allVocab.sort(() => 0.5 - Math.random()).slice(0, limit);
+};
+
+export const getAggregatedUserCollocations = (limit: number = 15): { en: string; zh: string; topic: string; date: string }[] => {
+  const history = getHistory('scaffold');
+  const collocationMap = new Map<string, { en: string; zh: string; topic: string; date: string }>(); // 使用Map去重
+
+  history.forEach(item => {
+    const data = item.data as ScaffoldContent;
+    if (data.collocations) {
+        data.collocations.forEach(col => {
+          // 只保留第一次出现的搭配
+          if (!collocationMap.has(col.en.toLowerCase())) {
+            collocationMap.set(col.en.toLowerCase(), {
+              en: col.en,
+              zh: col.zh,
+              topic: item.topic,
+              date: item.timestamp
+            });
+          }
+        });
+    }
+  });
+
+  // 转换为数组，打乱顺序，取前N个
+  const allCollocations = Array.from(collocationMap.values());
+  return allCollocations.sort(() => 0.5 - Math.random()).slice(0, limit);
 };

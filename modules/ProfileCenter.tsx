@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
-import { getAllLearningStats, LearningStats, getHistory, getAggregatedUserVocab, getAggregatedUserErrors } from '../services/storageService';
-import { HistoryItem, ScaffoldContent, EssayHistoryData, AggregatedError, CritiqueCategory, EssayGradeResult, Tab } from '../types';
+import { getAllLearningStats, LearningStats, getHistory, getAggregatedUserVocab, getAggregatedUserCollocations, getAggregatedUserErrors } from '../services/storageService';
+import { HistoryItem, ScaffoldContent, EssayHistoryData, AggregatedError, CritiqueCategory, EssayGradeResult, Tab, VocabularyItem } from '../types';
 import ResultsDisplay from '../components/ResultsDisplay';
 import GradingReport from '../components/GradingReport';
 
@@ -24,6 +24,65 @@ const StatCard = ({ icon, label, value, colorClass, desc }: { icon: string, labe
     </div>
   </div>
 );
+
+// 🆕 VocabCard: 悬浮式词汇卡片组件
+const VocabCard: React.FC<{ vocab: VocabularyItem }> = ({ vocab }) => {
+  return (
+    <div className="group relative inline-block">
+      {/* 默认显示：英文单词 + 中文悬浮标签 */}
+      <div className="px-3 py-1.5 bg-slate-50 border border-slate-200 text-slate-600 text-sm rounded-lg font-medium group-hover:bg-blue-50 group-hover:text-blue-900 group-hover:border-blue-300 transition-all cursor-pointer select-none flex items-center gap-1.5">
+        <span className="font-semibold">{vocab.word}</span>
+        <span className="text-xs text-slate-400 group-hover:text-blue-600">{vocab.chinese}</span>
+      </div>
+      
+      {/* 悬停显示：完整详情卡片 */}
+      <div className="absolute left-0 top-full mt-2 w-80 bg-white rounded-xl shadow-2xl border-2 border-blue-200 p-4 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 z-50 pointer-events-none">
+        {/* 箭头装饰 */}
+        <div className="absolute -top-2 left-4 w-4 h-4 bg-white border-t-2 border-l-2 border-blue-200 transform rotate-45"></div>
+        
+        {/* 卡片内容 */}
+        <div className="space-y-3">
+          {/* 标题：英文单词 */}
+          <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
+            <span className="text-2xl">📘</span>
+            <h4 className="text-lg font-bold text-slate-800">{vocab.word}</h4>
+          </div>
+          
+          {/* 中文释义 */}
+          <div className="flex items-start gap-2">
+            <span className="text-sm mt-0.5">🇨🇳</span>
+            <div>
+              <div className="text-xs text-slate-400 font-bold uppercase mb-0.5">中文释义</div>
+              <div className="text-sm font-medium text-slate-700">{vocab.chinese}</div>
+            </div>
+          </div>
+          
+          {/* 用法示例（英文 + 中文） */}
+          <div className="flex items-start gap-2 bg-blue-50/50 -mx-4 -mb-4 p-3 rounded-b-xl">
+            <span className="text-sm mt-0.5">✏️</span>
+            <div className="space-y-1.5">
+              <div className="text-xs text-blue-700 font-bold uppercase">Usage Example</div>
+              <div className="text-xs text-slate-700 leading-relaxed italic">{vocab.usage}</div>
+              <div className="text-xs text-slate-500 leading-relaxed">{vocab.usageChinese}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// 🆕 CollocationBadge: 地道搭配展示组件
+const CollocationBadge: React.FC<{ collocation: { en: string; zh: string } }> = ({ collocation }) => {
+  return (
+    <div className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg hover:bg-blue-50 hover:border-blue-300 transition-all cursor-default select-none">
+      <div className="flex items-baseline gap-2">
+        <span className="font-semibold text-sm text-slate-700">{collocation.en}</span>
+        <span className="text-xs text-slate-500">{collocation.zh}</span>
+      </div>
+    </div>
+  );
+};
 
 // [NEW] ScoreLineChart: 分数走势折线图
 const ScoreLineChart: React.FC<{ data: HistoryItem[] }> = ({ data }) => {
@@ -298,7 +357,8 @@ const ProfileCenter: React.FC<ProfileCenterProps> = ({ isActive, onNavigate }) =
   // State
   const [stats, setStats] = useState<LearningStats>({ socraticCount: 0, graderCount: 0, drillCount: 0 });
   const [historyItems, setHistoryItems] = useState<HistoryItem[]>([]);
-  const [recentVocab, setRecentVocab] = useState<string[]>([]);
+  const [recentVocab, setRecentVocab] = useState<VocabularyItem[]>([]);
+  const [recentCollocations, setRecentCollocations] = useState<{ en: string; zh: string; topic: string; date: string }[]>([]);
   const [recentErrors, setRecentErrors] = useState<AggregatedError[]>([]);
   const [loading, setLoading] = useState(true);
   const [viewingItem, setViewingItem] = useState<HistoryItem | null>(null);
@@ -310,6 +370,7 @@ const ProfileCenter: React.FC<ProfileCenterProps> = ({ isActive, onNavigate }) =
   const [showTrainingPreview, setShowTrainingPreview] = useState(false); // 🆕 训练预览对话框
   const [pendingTrainingCategory, setPendingTrainingCategory] = useState<CritiqueCategory | null>(null); // 🆕 待训练的维度
   const [showAllHistory, setShowAllHistory] = useState(false); // 🆕 学习活动档案展开状态
+  const [activeVaultTab, setActiveVaultTab] = useState<'vocabulary' | 'collocations'>('vocabulary'); // 🆕 语料库Tab状态
 
   // Computed Logic
   const errorStats = useMemo(() => {
@@ -475,11 +536,56 @@ const ProfileCenter: React.FC<ProfileCenterProps> = ({ isActive, onNavigate }) =
     // TODO: 未来可以在这里传递训练配置参数到对应模块
   };
 
+  // 🆕 CSV导出功能
+  const handleExportCSV = () => {
+    let csvContent = '';
+    let filename = '';
+    
+    if (activeVaultTab === 'vocabulary') {
+      // 导出核心词汇
+      csvContent = '\uFEFF'; // UTF-8 BOM for Excel
+      csvContent += '英文,中文,例句(英文),例句(中文)\n';
+      recentVocab.forEach(vocab => {
+        const row = [
+          vocab.word,
+          vocab.chinese,
+          vocab.usage.replace(/,/g, '，'), // 替换英文逗号避免CSV格式问题
+          vocab.usageChinese?.replace(/,/g, '，') || ''
+        ].join(',');
+        csvContent += row + '\n';
+      });
+      filename = `核心词汇_${new Date().toISOString().slice(0, 10)}.csv`;
+    } else {
+      // 导出地道搭配
+      csvContent = '\uFEFF';
+      csvContent += '英文搭配,中文释义,来源主题,日期\n';
+      recentCollocations.forEach(col => {
+        const row = [
+          col.en,
+          col.zh,
+          col.topic,
+          new Date(col.date).toLocaleDateString()
+        ].join(',');
+        csvContent += row + '\n';
+      });
+      filename = `地道搭配_${new Date().toISOString().slice(0, 10)}.csv`;
+    }
+    
+    // 触发下载
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = filename;
+    link.click();
+  };
+
   // Effects & Data Loading
   const refreshData = useCallback(() => {
     setStats(getAllLearningStats());
+
     setHistoryItems(getHistory());
     setRecentVocab(getAggregatedUserVocab(15));
+    setRecentCollocations(getAggregatedUserCollocations(20));
     setRecentErrors(getAggregatedUserErrors(20));
     setLoading(false);
   }, []);
@@ -650,20 +756,67 @@ const ProfileCenter: React.FC<ProfileCenterProps> = ({ isActive, onNavigate }) =
 
             {/* 3. Insight Sections */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-12">
-              {/* Left: Vocabulary Cloud */}
-              <div className="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm flex flex-col">
-                <div className="flex items-center gap-2 mb-4 pb-2 border-b border-slate-50">
-                   <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-600 flex items-center justify-center text-lg">📚</div>
-                   <div><h3 className="font-bold text-slate-800">语料库积累 (Word Vault)</h3><p className="text-[10px] text-slate-400 uppercase tracking-wider">Recently Acquired</p></div>
+              {/* Left: Vocabulary Vault with Tabs */}
+              <div className="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm flex flex-col h-[600px]">
+                <div className="flex items-center justify-between mb-4 pb-2 border-b border-slate-50 flex-shrink-0">
+                   <div className="flex items-center gap-2">
+                     <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-600 flex items-center justify-center text-lg">📚</div>
+                     <div><h3 className="font-bold text-slate-800">语料库积累 (Word Vault)</h3><p className="text-[10px] text-slate-400 uppercase tracking-wider">Recently Acquired</p></div>
+                   </div>
+                   <button
+                     onClick={handleExportCSV}
+                     disabled={activeVaultTab === 'vocabulary' ? recentVocab.length === 0 : recentCollocations.length === 0}
+                     className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-900 text-xs font-bold rounded-lg transition-colors flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
+                     title="导出当前分类为CSV"
+                   >
+                     <span>📥</span>
+                     <span>导出</span>
+                   </button>
                 </div>
-                <div className="flex-grow">
-                  {recentVocab.length > 0 ? (
-                    <div className="flex flex-wrap gap-2">
-                       {recentVocab.map((word, i) => (
-                         <span key={i} className="px-3 py-1.5 bg-slate-50 border border-slate-200 text-slate-600 text-sm rounded-lg font-medium hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-200 transition-colors select-none">{word}</span>
-                       ))}
-                    </div>
-                  ) : <div className="h-full flex flex-col items-center justify-center text-slate-400 text-sm py-8"><span>📭 暂无积累</span></div>}
+                
+                {/* Tab 切换 */}
+                <div className="flex gap-2 mb-4 flex-shrink-0">
+                  <button
+                    onClick={() => setActiveVaultTab('vocabulary')}
+                    className={`flex-1 px-3 py-2 rounded-lg text-sm font-bold transition-all ${
+                      activeVaultTab === 'vocabulary'
+                        ? 'bg-blue-900 text-white shadow-md'
+                        : 'bg-slate-50 text-slate-600 hover:bg-slate-100'
+                    }`}
+                  >
+                    核心词汇 ({recentVocab.length})
+                  </button>
+                  <button
+                    onClick={() => setActiveVaultTab('collocations')}
+                    className={`flex-1 px-3 py-2 rounded-lg text-sm font-bold transition-all ${
+                      activeVaultTab === 'collocations'
+                        ? 'bg-blue-900 text-white shadow-md'
+                        : 'bg-slate-50 text-slate-600 hover:bg-slate-100'
+                    }`}
+                  >
+                    地道搭配 ({recentCollocations.length})
+                  </button>
+                </div>
+                
+                {/* 内容展示（添加滚动） */}
+                <div className="flex-1 overflow-y-auto custom-scrollbar">
+                  {activeVaultTab === 'vocabulary' ? (
+                    recentVocab.length > 0 ? (
+                      <div className="flex flex-wrap gap-2 pr-2">
+                         {recentVocab.map((vocab, i) => (
+                           <VocabCard key={i} vocab={vocab} />
+                         ))}
+                      </div>
+                    ) : <div className="h-full flex flex-col items-center justify-center text-slate-400 text-sm py-8"><span>📭 暂无积累</span></div>
+                  ) : (
+                    recentCollocations.length > 0 ? (
+                      <div className="flex flex-wrap gap-2 pr-2">
+                         {recentCollocations.map((col, i) => (
+                           <CollocationBadge key={i} collocation={col} />
+                         ))}
+                      </div>
+                    ) : <div className="h-full flex flex-col items-center justify-center text-slate-400 text-sm py-8"><span>📭 暂无积累</span></div>
+                  )}
                 </div>
               </div>
 

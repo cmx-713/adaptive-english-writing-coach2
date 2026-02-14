@@ -308,10 +308,12 @@ ${data.frames.map(f => `[${f.patternName}] ${f.patternNameZh}\nTemplate: ${f.tem
                                 🔊
                             </button>
                         </div>
-                        <div className="text-xs text-slate-500 mb-2 leading-tight">{vocab.englishDefinition}</div>
-                        <div className="mt-auto pt-2 border-t border-slate-50">
-                            <div className={`text-[10px] italic p-1.5 rounded transition-colors ${isUsed ? 'text-emerald-600 bg-emerald-100/50' : 'text-slate-400 bg-slate-50 group-hover/card:bg-white'}`}>
+                        <div className="mt-auto pt-2 border-t border-slate-50 space-y-1.5">
+                            <div className={`text-xs italic p-1.5 rounded transition-colors ${isUsed ? 'text-emerald-700 bg-emerald-100/50' : 'text-slate-700 bg-slate-50 group-hover/card:bg-white'}`}>
                                 {vocab.usage}
+                            </div>
+                            <div className={`text-xs p-1.5 rounded transition-colors ${isUsed ? 'text-emerald-600 bg-emerald-50/30' : 'text-slate-500 bg-slate-50 group-hover/card:bg-white'}`}>
+                                {vocab.usageChinese}
                             </div>
                         </div>
                         

@@ -415,9 +415,10 @@ export const fetchLanguageScaffolds = async (topic: string, dimension: string, u
             word: { type: Type.STRING },
             chinese: { type: Type.STRING },
             englishDefinition: { type: Type.STRING },
-            usage: { type: Type.STRING }
+            usage: { type: Type.STRING },
+            usageChinese: { type: Type.STRING }
           },
-          required: ['word', 'chinese', 'englishDefinition', 'usage']
+          required: ['word', 'chinese', 'englishDefinition', 'usage', 'usageChinese']
         }
       },
       collocations: {
@@ -449,7 +450,31 @@ export const fetchLanguageScaffolds = async (topic: string, dimension: string, u
   };
 
   const systemPrompt = "You are a CET-4/6 writing coach helping Chinese students. Provide vocabulary and sentence frames to help the student expand their idea.";
-  const userPrompt = `Topic: ${topic}\nDimension: ${dimension}\nStudent Idea: ${userIdea}\nGenerate scaffolds.\n\nIMPORTANT for the "frames" field: Generate 3 sentence frames. Each frame must include:\n- "patternName": the English sentence pattern name (e.g., "Not only...but also...")\n- "patternNameZh": Chinese translation of the pattern (e.g., "不仅……而且还……")\n- "template": a sentence template where blanks are marked by brackets containing CHINESE hints.\n- "modelSentence": a complete, well-written reference sentence that fills all the blanks perfectly.\n\nCRITICAL RULE for "template": The text inside square brackets [] MUST be in Chinese (中文), NOT English. These hints tell the student what concept to express in each blank.\n\nCORRECT example: "Not only do these activities [培养什么能力], but they also equip students with [什么样的技能] necessary to [达成什么目标]."\nWRONG example: "Not only do these activities [what ability to cultivate], but they also equip students with [what kind of skills] necessary to [what goal to achieve]."\n\nThe hints MUST be short Chinese phrases (2-6 Chinese characters) describing what to fill in.`;
+  const userPrompt = `Topic: ${topic}\nDimension: ${dimension}\nStudent Idea: ${userIdea}\nGenerate scaffolds.
+
+IMPORTANT for the "vocabulary" field: 
+- Each vocabulary item must include "usageChinese" (the Chinese translation of the usage example sentence).
+- Example format:
+  {
+    "word": "data leakage",
+    "chinese": "数据泄露",
+    "englishDefinition": "When training data accidentally contains information from test data",
+    "usage": "Avoid data leakage by separating training and test datasets properly.",
+    "usageChinese": "通过适当分离训练集和测试集来避免数据泄露。"
+  }
+
+IMPORTANT for the "frames" field: Generate 3 sentence frames. Each frame must include:
+- "patternName": the English sentence pattern name (e.g., "Not only...but also...")
+- "patternNameZh": Chinese translation of the pattern (e.g., "不仅……而且还……")
+- "template": a sentence template where blanks are marked by brackets containing CHINESE hints.
+- "modelSentence": a complete, well-written reference sentence that fills all the blanks perfectly.
+
+CRITICAL RULE for "template": The text inside square brackets [] MUST be in Chinese (中文), NOT English. These hints tell the student what concept to express in each blank.
+
+CORRECT example: "Not only do these activities [培养什么能力], but they also equip students with [什么样的技能] necessary to [达成什么目标]."
+WRONG example: "Not only do these activities [what ability to cultivate], but they also equip students with [what kind of skills] necessary to [what goal to achieve]."
+
+The hints MUST be short Chinese phrases (2-6 Chinese characters) describing what to fill in.`;
   
   const res = await callAI(systemPrompt, userPrompt, schema);
   return safeJsonParse(res, 'fetchScaffolds');

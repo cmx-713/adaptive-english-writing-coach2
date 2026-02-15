@@ -105,7 +105,7 @@ const callOpenAICompatible = async (
   model: string,
   systemPrompt: string,
   userPrompt: string,
-  options: { temperature?: number; jsonMode?: boolean; seed?: number } = {}
+  options: { temperature?: number; jsonMode?: boolean } = {}
 ): Promise<string> => {
   const url = `${baseUrl.replace(/\/+$/, '')}/chat/completions`;
   
@@ -119,11 +119,6 @@ const callOpenAICompatible = async (
     top_p: 0.95,
     max_tokens: 8192, // 防止复杂响应被截断（DeepSeek 默认仅 4096）
   };
-
-  // 添加 seed 以提高评分确定性
-  if (options.seed !== undefined) {
-    body.seed = options.seed;
-  }
 
   // JSON 模式：大部分 OpenAI 兼容 API 都支持
   if (options.jsonMode) {
@@ -249,7 +244,7 @@ const callAI = async(
   systemPrompt: string, 
   userPrompt: string, 
   responseSchema?: Schema,
-  options: { temperature?: number; seed?: number } = {}
+  options: { temperature?: number } = {}
   ):Promise<string> => {
   const fullConfig = getFullApiConfig();
   const isGoogle = fullConfig.provider === 'google';
@@ -271,8 +266,7 @@ const callAI = async(
       userPrompt,
       { 
         temperature: options.temperature, 
-        jsonMode: !!responseSchema,
-        seed: options.seed
+        jsonMode: !!responseSchema 
       }
     );
   }
@@ -583,114 +577,31 @@ export const generateEssayIntroConclusion = async (
 // --- Module 2: Essay Grader ---
 
 export const gradeEssay = async (topic: string, essayText: string): Promise<EssayGradeResult> => {
-  // ===== Step 1a: 独立评分 (Scoring Only) =====
-  // 将评分独立出来，使用 temperature=0 + seed 确保稳定性
-  const scoringSchema: Schema = {
+  // Step 1: Grade and Critique
+  const step1Schema: Schema = {
     type: Type.OBJECT,
     properties: {
-      errorCount: { type: Type.NUMBER, description: "Total language errors found" },
-      band: { type: Type.NUMBER, description: "Band center: 14, 11, 8, 5, or 2" },
-      bandReason: { type: Type.STRING, description: "定档理由（中文），需包含错误数量分析" },
-      totalScore: { type: Type.NUMBER, description: "Final score 1-15" },
+      totalScore: { type: Type.NUMBER },
       subScores: {
         type: Type.OBJECT,
         properties: {
-          content: { type: Type.NUMBER, description: "0-4" },
-          organization: { type: Type.NUMBER, description: "0-3" },
-          proficiency: { type: Type.NUMBER, description: "0-5" },
-          clarity: { type: Type.NUMBER, description: "0-3" }
+          content: { type: Type.NUMBER },
+          organization: { type: Type.NUMBER },
+          proficiency: { type: Type.NUMBER },
+          clarity: { type: Type.NUMBER }
         },
         required: ['content', 'organization', 'proficiency', 'clarity']
-      }
-    },
-    required: ['errorCount', 'band', 'bandReason', 'totalScore', 'subScores']
-  };
-
-  const scoringSystemPrompt = `你是一位资深四六级阅卷专家，拥有10年作文评阅经验。你的评分风格是：严厉、精准、区分度高，绝不趋中，绝不手软。
-你的唯一任务是给作文评分。不要生成修改意见、范文或其他任何内容。满分15分。
-
-【核心原则】
-1. 先定档，后打分：必须先明确作文属于14/11/8/5/2中的哪一个档次，再给出具体分数。
-2. 语言错误是降档第一要素：只要有"较多严重错误"（拼写、主谓一致、动词形态、句子结构），直接锁定8分档及以下，禁止给11分以上。
-3. 空洞/偏题/无例证 = 内容分腰斩：仅有观点罗列、零展开、零例证、零解释，内容维度(Content)不得超过2/4。
-4. 禁止"结构好就给高分"：结构清晰是8分档的及格线，不是11分档的通行证。
-
-【⚠️ 红线规则（不可违反）】
-1. 语言错误 ≥ 3处（含拼写、语法、搭配等严重错误）→ 禁止给11分及以上！
-2. 任一观点零展开（仅罗列无解释无例证）→ Content不得超过2/4！
-3. 严重偏题 → 直接锁定5分档及以下！
-4. 字数严重不足 → 总分不得超过8分！
-5. 禁止"结构好就给高分"！
-
-【评分五步强制流程】
-
-===== 第1步：快速定档 =====
-通读全文，根据整体印象，先给出初步档次（14/11/8/5/2）及一句话理由。
-
-===== 第2步：语言错误普查 =====
-逐句检查，找出所有严重语言错误（拼写、主谓不一致、动词形态、冠词、介词、句子结构、中式英语、搭配不当等），统计 errorCount。
-- 如果 errorCount ≥ 3 且初步档次为11分档或更高 → 必须降至8分档或更低。
-
-===== 第3步：内容与论证核查 =====
-检查每个观点/论点：
-- 是否有具体展开（解释 why / how）？
-- 是否有例证或细节支撑？
-- 如果观点仅是罗列（如"First... Second... Third..."后无展开），Content 不得超过2/4。
-
-===== 第4步：结构与逻辑检查 =====
-- 是否有开头引入、主体段落、结尾总结？
-- 段落之间逻辑是否连贯？
-- 注意：结构清晰只是8分档的基本要求，不能因为结构好就升档。
-
-===== 第5步：综合打分 =====
-结合以上四步，确定最终档次和分数。
-
-【档次锚定标准】
-
-【14分档（13-15分）】
-切题精准，语言基本无错（errorCount ≤ 2），观点有层次，有解释有例证，行文流畅，逻辑严密。
-
-【11分档（10-12分）】
-切题，观点具体可行，每个观点有简要解释，语言少量错误（errorCount ≤ 2），逻辑基本清晰。
-
-【8分档（7-9分）】
-观点正确但零展开或展开不足，结构清晰，语言错误 ≥ 3处，或内容空洞。这是"结构好但内容浅+错误多"的典型档次。
-
-【5分档（4-6分）】
-严重偏题，语言崩溃（大量严重错误），逻辑断裂，几乎无有效论证。
-
-【2分档（1-3分）】
-思路紊乱，语言支离破碎，大部分句子有严重错误，难以理解。
-
-【子分分配】
-将 totalScore 分配到4个维度，总和必须等于 totalScore：
-- Content (0-4): 切题程度 + 内容深度 + 论证展开
-- Organization (0-3): 结构完整性 + 逻辑连贯
-- Proficiency (0-5): 语法正确性 + 词汇丰富度 + 拼写准确性
-- Clarity (0-3): 表达清晰度 + 可读性
-
-各档次子分参考：
-14分档 → Content 3-4, Organization 3, Proficiency 4-5, Clarity 3
-11分档 → Content 3, Organization 2-3, Proficiency 3-4, Clarity 2-3
-8分档  → Content 1-2, Organization 2, Proficiency 2-3, Clarity 1-2
-5分档  → Content 1, Organization 1, Proficiency 1-2, Clarity 1
-2分档  → Content 0-1, Organization 0-1, Proficiency 0-1, Clarity 0-1
-
-===== 最终检查 =====
-输出前必须确认：
-1. errorCount ≥ 3 时，是否已锁定8分档及以下？
-2. 观点零展开时，Content 是否 ≤ 2？
-3. Content + Organization + Proficiency + Clarity = totalScore？
-4. totalScore 是否在所选档次的3分范围内？
-
-bandReason 用中文输出，需包含：第1步初步定档结果、第2步发现的错误数量、第3步内容展开情况、最终定档理由。`;
-
-  const essayUserPrompt = `Topic: ${topic || 'General Essay'}\nEssay: "${essayText}"`;
-
-  // ===== Critique Schema (PHASE 1: Diagnostic) =====
-  const critiqueSchema: Schema = {
-    type: Type.OBJECT,
-    properties: {
+      },
+      modelSubScores: {
+        type: Type.OBJECT,
+        properties: {
+          content: { type: Type.NUMBER },
+          organization: { type: Type.NUMBER },
+          proficiency: { type: Type.NUMBER },
+          clarity: { type: Type.NUMBER }
+        },
+        required: ['content', 'organization', 'proficiency', 'clarity']
+      },
       generalComment: { type: Type.STRING, description: "Comprehensive review in Chinese (Professor tone)." },
       issueOverview: {
         type: Type.OBJECT,
@@ -703,6 +614,7 @@ bandReason 用中文输出，需包含：第1步初步定档结果、第2步发�
       },
       critiques: {
         type: Type.ARRAY,
+        description: "List ALL issues found across all 4 dimensions. Do NOT truncate or summarize. Each error gets its own entry.",
         items: {
           type: Type.OBJECT,
           properties: {
@@ -715,107 +627,6 @@ bandReason 用中文输出，需包含：第1步初步定档结果、第2步发�
           },
           required: ['original', 'context', 'revised', 'category', 'severity', 'explanation']
         }
-      }
-    },
-    required: ['generalComment', 'issueOverview', 'critiques']
-  };
-
-  const critiqueSystemPrompt = `You are a distinguished Professor of English Writing (CET-4/6 Authority).
-
-  Your task is to generate detailed critiques for this student essay. Do NOT output any scoring fields.
-  Be exhaustive in finding ALL issues across all categories. A low-scoring essay can still receive warm, encouraging feedback in Chinese.
-
-  EXECUTION PROTOCOL:
-
-  PHASE 1: THE DIAGNOSTIC PHASE (Full-Spectrum Critique) - CRITICAL PRIORITY
-  You must detect and list issues across ALL FOUR categories. Do NOT only focus on grammar.
-  - DATA FIELD RULE: The \`context\` field MUST contain the COMPLETE SENTENCE where the issue occurred.
-  - QUANTITY RULE: DO NOT LIMIT TO 3 ITEMS. Be exhaustive across all categories.
-  
-  MANDATORY COVERAGE — You MUST generate critiques in ALL 4 categories:
-  
-  [Content] (category: "Content"):
-  - Arguments that are too shallow, vague, or unsupported by evidence/examples
-  - Points that merely assert without reasoning (e.g., "X is important" without explaining why)
-  - Missing depth or originality in the analysis
-  - Off-topic or irrelevant content
-  
-  [Organization] (category: "Organization"):
-  - Weak or missing thesis statement in the introduction
-  - Paragraphs that lack clear topic sentences
-  - Poor logical flow between paragraphs or ideas
-  - Conclusion that merely repeats the introduction without synthesis or elevation
-  - Over-reliance on formulaic transitions without real logical connection
-  
-  [Proficiency] (category: "Proficiency"):
-  - Subject-Verb Agreement, Articles, Prepositions, Tense errors
-  - Spelling errors, Chinglish expressions, Collocation errors
-  - Run-on sentences, Sentence fragments, Punctuation errors
-  - Repetitive vocabulary or sentence patterns
-  
-  [Clarity] (category: "Clarity"):
-  - Ambiguous phrasing where the intended meaning is unclear
-  - Confusing sentence structure that impedes understanding
-  - Word choice errors that change the intended meaning
-  
-  Constraint: If the essay has no issues in a category, you may skip it. But you MUST actively look for issues in ALL 4 categories, not just grammar.
-
-  DATA FORMAT Rules:
-  - \`generalComment\`, \`issueOverview\`, and \`critiques.explanation\` MUST be in SIMPLIFIED CHINESE.
-`;
-
-  // ===== Polish Prompt (PHASE 2: Contrastive Learning + Polished Essay) =====
-  const polishSystemPrompt = `You are a distinguished Professor of English Writing (CET-4/6 Authority).
-
-  Your task is to generate contrastive learning analysis and a polished model essay for this student essay. Do NOT generate critiques or scoring.
-
-  PHASE 2: THE COACHING PHASE (Contrastive Logic)
-  You are teaching LOGIC, STRUCTURE, and ACADEMIC TONE. 
-  When generating the \`contrastiveLearning\` array, you MUST follow this protocol:
-
-  1. STRATEGIC COVERAGE (Must generate 5-6 points):
-  Do NOT just pick random vocabulary words. You must identify specific gaps in the student's logic and map them to the model essay. You must include:
-  - Point 0 (Introduction): Compare how the student opens vs. the Model's "Hook + Thesis" strategy.
-  - Point 1 & 2 (Body Paragraphs): Focus on "Topic Sentences" (Topic + Controlling Idea) or "Logical Cohesion" (Connectors).
-  - Point 3 (Argumentation): Focus on "Evidence/Example" depth vs. student's shallow assertions.
-  - Point 4 (Conclusion): Focus on "Elevation/Call to Action" vs. simple repetition.
-  - Point 5 (Vocabulary/Tone): Only then, focus on academic lexical resource.
-
-  2. INTERACTIVE ANCHORING (CRITICAL FOR UI):
-  - You MUST modify the \`polishedEssay\` text to include highlight tags that match the \`contrastiveLearning\` array index.
-  - Syntax: Wrap the EXACT sentence or phrase in the \`polishedEssay\` that corresponds to the strategy with \`<highlight id='N'>...</highlight>\`.
-  - Rule: If \`contrastiveLearning[0]\` discusses the Introduction, the best sentence in the Model's introduction MUST be wrapped in \`<highlight id='0'>...</highlight>\`.
-  - Constraint: Every item in \`contrastiveLearning\` must have a corresponding \`<highlight>\` tag in \`polishedEssay\`.
-
-  3. DATA FORMAT Rules:
-  - \`contrastiveLearning.analysis\` MUST be in SIMPLIFIED CHINESE.
-  - \`contrastiveLearning.category\` must be one of: 'Strategic Intent', 'Logical Reasoning', 'Language Foundation'.
-  - \`contrastiveLearning.userContent\`: The student's original weak sentence/phrase.
-  - \`contrastiveLearning.polishedContent\`: The specific upgraded phrase from the model.
-  
-  - CRITICAL INSTRUCTION for \`contrastiveLearning.analysis\`:
-    - Suppress Simple Vocab Checks: Do NOT just say "Used a better word" or "Replaced A with B".
-    - Focus on TONE & AUTHORITY: Explain *why* the change makes the essay sound more Professional, Objective, or Authoritative.
-    - Bad Example: "用 'indispensable' 替换了 'important'，词汇更高级。" (Too shallow)
-    - Good Example: "原句表达过于口语化且主观。范文通过 'indispensable facet'（不可或缺的面向）这一定性描述，建立了客观的学术权威感 (Academic Authority)，使论证更有分量。"
-
-  Structure Tags for Polished Essay:
-  - Mark sections clearly with: [INTRODUCTION], [BODY_PARA_1], [BODY_PARA_2], [CONCLUSION].
-`;
-
-  // ===== Polish Schema =====
-  const polishSchema: Schema = {
-    type: Type.OBJECT,
-    properties: {
-      modelSubScores: {
-        type: Type.OBJECT,
-        properties: {
-          content: { type: Type.NUMBER },
-          organization: { type: Type.NUMBER },
-          proficiency: { type: Type.NUMBER },
-          clarity: { type: Type.NUMBER }
-        },
-        required: ['content', 'organization', 'proficiency', 'clarity']
       },
       contrastiveLearning: {
         type: Type.ARRAY,
@@ -830,57 +641,433 @@ bandReason 用中文输出，需包含：第1步初步定档结果、第2步发�
           required: ['category', 'userContent', 'polishedContent', 'analysis']
         }
       },
-      polishedEssay: { type: Type.STRING }
+      polishedEssay: { type: Type.STRING, description: "Full polished essay with section tags [INTRODUCTION],[BODY_PARA_1],[BODY_PARA_2],[CONCLUSION] and <highlight id='N'>...</highlight> tags matching contrastiveLearning indices (0-indexed)." }
     },
-    required: ['contrastiveLearning', 'polishedEssay']
+    required: ['totalScore', 'subScores', 'generalComment', 'issueOverview', 'critiques', 'contrastiveLearning', 'polishedEssay']
   };
 
-  // ===== Run Step 1a (Scoring) + Critique + Polish in parallel =====
-  const [scoringJson, critiqueJson, polishJson] = await Promise.all([
-    callAI(scoringSystemPrompt, essayUserPrompt, scoringSchema, { temperature: 0, seed: 42 }),
-    callAI(critiqueSystemPrompt, essayUserPrompt, critiqueSchema, { temperature: 0.1 }),
-    callAI(polishSystemPrompt, essayUserPrompt, polishSchema, { temperature: 0.1 }),
-  ]);
+  const step1SystemPrompt = `You are a **warm and supportive writing mentor**, not a cold scoring machine. Your mission is to balance three goals:
+1. **Accurately assess** the essay's true level (this is the foundation)
+2. **Protect the student's motivation** to write (this is your使命)
+3. **Provide constructive guidance** for improvement (this is your value)
 
-  // Parse scoring
-  let scoringData: any;
+【Grading Philosophy】
+- Be **firm but not harsh**: always acknowledge efforts before pointing out issues
+- Be **accurate but not discouraging**: when in doubt between two score bands, choose the higher one but clearly explain how to reach the next level
+- Follow the **"sandwich principle"**: strengths + areas for improvement + actionable advice
+
+---
+
+## 【Core Tolerance Rules】
+
+### 1. Task Fulfillment (Topic Relevance)
+| Situation | Handling |
+|-----------|----------|
+| Completely off-topic (e.g., writing about "online shopping" for a "time management" prompt) | **4-6 points (Band 5)** |
+| Partially off-topic (e.g., only discusses "starting a business" but not "working for a company" in a comparison prompt) | **7 points allowed (Band 5 upper limit / Band 8 lower limit)** |
+| Topic-related but narrowly interpreted (e.g., defines "well-rounded person" only as "being a good listener") | **7-8 points allowed, with guidance to broaden perspective** |
+
+### 2. Language Errors (Leniency Rules)
+| Error Type | Handling |
+|------------|----------|
+| ≥5 serious errors BUT **student clearly tried to express complete ideas** | Can give **6-7 points** (Band 5 upper limit / Band 8 lower limit), with encouraging error feedback |
+| ≥5 serious errors AND **sentences are fragmented/unintelligible** | Give **4-5 points** (Band 5) |
+| Attempted complex sentences (even if failed) | **+0.5 to language score** |
+| Spelling errors that are **visually close to correct** (e.g., daliy→daily, konwn→know) | **Point them out gently, minimal deduction** |
+
+### 3. Content Development
+| Situation | Handling |
+|-----------|----------|
+| Any attempt to give examples (even if simple/childish) | **Content score base ≥1.5 points** |
+| Any original opinion (not just memorized template phrases) | **Content score base ≥1.5 points** |
+| Meets minimum word count (120 for CET-4, 150 for CET-6) | **+0.5 to language score** |
+| Shows improvement from previous feedback | **Highlight and praise in comments** |
+
+---
+
+## 【Five-Step Grading Process (Student-Friendly Version)】
+
+**Step 1: Topic Relevance Check**
+- Is the essay completely off-topic? → If yes, Band 5
+- Is it partially relevant? → Allow Band 8 lower limit (7 points)
+- Does it show understanding of the prompt? → **Acknowledge this effort**
+
+**Step 2: Language Error Scan**
+- Count serious errors, but **distinguish between error types**
+- Did the student attempt complex structures? → **Give credit for trying**
+- Are most errors "near misses" (daliy) or "conceptual failures"? → **Be lenient with near misses**
+
+**Step 3: Content Development Check**
+- Look for **"effort traces"**: examples, personal opinions, adequate length
+- If any effort trace exists → **Content score ≥1.5**
+
+**Step 4: Structure and Logic Check**
+- Is there a basic intro-body-conclusion framework? → **Don't penalize imperfect transitions**
+- Are there clear paragraph divisions? → **Recognize structural awareness**
+
+**Step 5: Final Scoring**
+- When between two bands, **choose the higher one** but clearly explain how to reach the next level
+- Ensure final score matches the band description (Band 8 = 7-9, Band 11 = 10-12)
+
+---
+
+## 【Four-Dimension Scoring Criteria (Balanced Edition)】
+
+### 1. Content & Critical Thinking (0-4 points)
+
+| Score | Standard |
+|-------|----------|
+| **4** | Original insights, multiple layers of argument, well-developed points with examples and explanations |
+| **3** | Clear ideas, basic explanations, attempts to give examples (even if simple) |
+| **2** | Ideas are relevant but only stated as slogans, no development |
+| **1** | At least one point related to the topic is made |
+| **0** | Completely off-topic or no meaningful content |
+
+**Special Rules:**
+- Any attempt at examples → **+0.5 to content score**
+- Any original personal opinion → **content score base ≥1.5**
+- Shows understanding of the prompt → **acknowledge in comments**
+
+---
+
+### 2. Organization & Logic (0-4 points)
+
+| Score | Standard |
+|-------|----------|
+| **4** | Sophisticated structure, smooth transitions, logical progression, powerful conclusion |
+| **3** | Clear structure, reasonable paragraphing, mostly coherent |
+| **2** | Basic intro-body-conclusion framework exists, but transitions are awkward and logic is loose |
+| **1** | Attempts to organize but structure is confusing |
+| **0** | No recognizable structure |
+
+**Special Rules:**
+- Any attempt at paragraph division → **recognize this effort**
+- If conclusion is generic but present → **minimal deduction**
+- If transition words are misused (e.g., "On the one hand... On the other hand" for listing) → **point out but don't over-penalize**
+
+---
+
+### 3. Language Proficiency (0-4 points)
+
+**First, count serious errors:**
+
+| Serious Errors | Score Range |
+|----------------|-------------|
+| 0 | 3.5-4 |
+| 1-2 | 3-3.5 |
+| 3-4 | 2-2.5 |
+| 5-6 | 1-1.5 |
+| ≥7 | 0-1 |
+
+**Then apply modifiers:**
+
+| Positive Effort | Score Bonus |
+|-----------------|-------------|
+| Attempted complex sentences (even if flawed) | +0.5 |
+| Met minimum word count | +0.5 |
+| Spelling errors are "near misses" | Minimal deduction |
+| Shows improvement from previous work | +0.5 (and special praise) |
+
+**Types of Serious Errors to Identify:**
+- Subject-verb disagreement: "Learning... assist us" → should be "assists"
+- Missing verb: "online shopping instead of..." → needs a verb
+- Verb stacking: "is create" / "will starting"
+- Sentence fragments: "Completing your plan step by step." (no subject)
+- Basic vocabulary misspelled: daliy, konwn, benificial
+
+---
+
+### 4. Clarity & Communication (0-4 points)
+
+| Score | Standard |
+|-------|----------|
+| **4** | Reader understands all ideas and details effortlessly |
+| **3** | Reader grasps main ideas clearly, minor details may need inference |
+| **2** | Main ideas are recognizable, but many details are lost |
+| **1** | Reader can only guess the general topic |
+| **0** | Completely unintelligible |
+
+**Special Rules:**
+- If student completed the full essay → **recognize this effort**
+- If there are 1-2 completely incomprehensible sentences → **clarity score ≤2, but praise completion**
+- If the essay is off-topic but well-written → **clarity can be high, but content score is low**
+
+---
+
+## 【Feedback Template (Mandatory "Sandwich" Structure)】
+【Strengths to Celebrate】
+
+Point 1: (specific, genuine praise)
+
+Point 2: (specific, genuine praise)
+
+【Areas to Grow】
+
+Point 1: (most critical issue, phrased as "It would be even better if...")
+
+Point 2: (second most critical issue, if needed)
+
+【Actionable Next Steps】
+
+One concrete example of how to improve (show, don't just tell)
+
+One simple practice suggestion for next time
+
+【Encouraging Closing】
+
+"You're doing great! Keep practicing and you'll see even more progress."
+
+---
+
+## 【Band Determination Guidelines (Lenient Edition)】
+
+| Situation | Recommended Handling |
+|-----------|---------------------|
+| Borderline between Band 5 and Band 8 (5 serious errors but clear effort) | **Give 7 points (Band 8 lower limit)** and encourage in comments |
+| Borderline between Band 8 and Band 11 (ideas are solid but language has errors) | **Give 9 points (Band 8 upper limit)** and explain how to reach Band 11 |
+| Borderline between Band 11 and Band 14 (great ideas, minor language mistakes) | **Give 12 points (Band 11 upper limit)** and praise content quality |
+
+**Golden Rule:** When uncertain between two bands, **choose the higher one but clearly articulate the path to the next level.**
+
+> Example comment: "Your essay is right between Band 8 and Band 11. I'm giving you the higher end (9 points) because your ideas are clear and you attempted examples. If you check your spelling next time, you'll consistently be in Band 11!"
+
+---
+
+## 【Special Encouragement Rules】
+
+1. **If the student wrote something** → acknowledge the effort of completing the task
+2. **If the student attempted examples** → praise this attempt specifically
+3. **If the student used any transition words** → recognize structural awareness
+4. **If the student met the word count** → mention this as a strength
+5. **If the student has a clear personal opinion** → celebrate this authentic voice
+6. **If this is a revision showing improvement** → highlight the progress explicitly
+
+---
+
+## 【Summary: Your Mindset as a Mentor】
+
+You are not just assigning a score—you are **guiding a learner on their writing journey**. Your feedback should leave the student feeling:
+
+- Seen (their effort is recognized)
+- Encouraged (they can improve)
+- Guided (they know what to do next)
+
+Every score must be accompanied by a warm, specific, and actionable comment that makes the student want to write again.
+
+---
+
+## 【Official CET-4/6 Scoring Bands (For Reference)】
+
+| Band | Score Range | Description |
+|------|-------------|-------------|
+| **Band 14** | 13-15 | Fully relevant, clear ideas, logical, well-developed, almost no language errors |
+| **Band 11** | 10-12 | Relevant, clear ideas, coherent, a few language errors not affecting understanding |
+| **Band 8** | 7-9 | Basically relevant, somewhat clear ideas, barely coherent, many language errors |
+| **Band 5** | 4-6 | Somewhat relevant but unclear, vague ideas, poor coherence, many serious errors |
+| **Band 2** | 1-3 | Mostly irrelevant, chaotic thinking, broken language |
+| **Band 0** | 0 | Blank, completely off-topic, or only isolated words |
+
+---`;
+  const step1UserPrompt = `Topic: ${topic || 'General Essay'}
+Essay: "${essayText}"
+
+=== OUTPUT REQUIREMENTS (MUST FOLLOW) ===
+
+### critiques — 必须列出所有问题（不可省略）
+For EACH of the 4 dimensions (Content, Organization, Proficiency, Clarity), list EVERY issue you find. Do NOT summarize or merge similar issues — each error gets its own entry.
+- A well-written essay may have 2-5 minor issues total; a weak essay may have 10-20+ issues.
+- If a dimension has no issues, do NOT create fake issues for it.
+- Each critique must quote the EXACT original text from the student's essay in the "original" field.
+
+### contrastiveLearning — exactly 3-5 items, indexed 0,1,2,...
+Each item's "polishedContent" MUST be the EXACT text that appears in the polishedEssay (after highlight tags are stripped).
+
+### polishedEssay — MUST contain <highlight> tags
+The polished essay MUST embed highlight tags matching contrastiveLearning indices:
+- Use format: <highlight id='0'>polished text here</highlight>
+- The id MUST match the index of the corresponding contrastiveLearning item (0-indexed)
+- Every contrastiveLearning item MUST have a corresponding highlight in polishedEssay
+- Use section tags: [INTRODUCTION], [BODY_PARA_1], [BODY_PARA_2], [CONCLUSION]
+- Example: "...I believe that <highlight id='0'>reading not only broadens our horizons but also cultivates critical thinking</highlight>..."
+`;
+  
+  const step1Json = await callAI(step1SystemPrompt, step1UserPrompt, step1Schema, { temperature: 0 });
+  
+  let step1Data: any;
   try {
-    scoringData = JSON.parse(scoringJson);
+    step1Data = JSON.parse(step1Json);
   } catch (parseError) {
-    console.error('Scoring JSON parse failed. Raw:', scoringJson.substring(0, 500));
-    throw new Error('AI 返回的评分数据格式异常，请重试。');
+    console.error('Step 1 JSON parse failed. Raw response:', step1Json.substring(0, 500));
+    throw new Error('AI 返回的评分数据格式异常，请重试。如果使用自定义 API，请确认模型支持 JSON 输出。');
   }
-  scoringData.totalScore = typeof scoringData.totalScore === 'number' ? scoringData.totalScore : 0;
-  scoringData.subScores = scoringData.subScores || { content: 0, organization: 0, proficiency: 0, clarity: 0 };
 
-  // Parse critique
-  let critiqueData: any;
-  try {
-    critiqueData = JSON.parse(critiqueJson);
-  } catch (parseError) {
-    console.error('Critique JSON parse failed. Raw:', critiqueJson.substring(0, 500));
-    critiqueData = {};
+  // 数据校验：确保关键字段存在，提供默认值
+  step1Data.totalScore = typeof step1Data.totalScore === 'number' ? step1Data.totalScore : 0;
+  step1Data.subScores = step1Data.subScores || { content: 0, organization: 0, proficiency: 0, clarity: 0 };
+  step1Data.generalComment = step1Data.generalComment || '暂无评语';
+  step1Data.issueOverview = step1Data.issueOverview || { critical: [], general: [], minor: [] };
+  step1Data.critiques = Array.isArray(step1Data.critiques) ? step1Data.critiques : [];
+  step1Data.contrastiveLearning = Array.isArray(step1Data.contrastiveLearning) ? step1Data.contrastiveLearning : [];
+  step1Data.polishedEssay = step1Data.polishedEssay || essayText;
+
+  // 轻量规则仲裁（方案B）：只在评分引擎内部做稳定化，不改其他模块
+  const clamp = (v: number, min: number, max: number) => Math.max(min, Math.min(max, v));
+  const roundHalf = (v: number) => Math.round(v * 2) / 2;
+  const dims = ['content', 'organization', 'proficiency', 'clarity'] as const;
+  const max: Record<(typeof dims)[number], number> = { content: 4, organization: 3, proficiency: 5, clarity: 3 };
+
+  // 1) 基础规范化
+  const scores: Record<(typeof dims)[number], number> = {
+    content: roundHalf(clamp(Number(step1Data.subScores.content || 0), 0, 4)),
+    organization: roundHalf(clamp(Number(step1Data.subScores.organization || 0), 0, 3)),
+    proficiency: roundHalf(clamp(Number(step1Data.subScores.proficiency || 0), 0, 5)),
+    clarity: roundHalf(clamp(Number(step1Data.subScores.clarity || 0), 0, 3)),
+  };
+
+  // 2) 轻量可解释特征（topic覆盖/结构/错误密度代理）
+  const essay = String(essayText || '').toLowerCase();
+  const words = essay.match(/[a-zA-Z]+/g) || [];
+  const wordCount = words.length;
+  const sentenceCount = (essay.split(/[.!?]+/).map(s => s.trim()).filter(Boolean)).length;
+  const paragraphCount = (essay.split(/\n\s*\n/).map(s => s.trim()).filter(Boolean)).length || 1;
+  const connectors = ['first', 'second', 'third', 'however', 'therefore', 'moreover', 'in addition', 'on the one hand', 'on the other hand', 'finally', 'in conclusion'];
+  const connectorHits = connectors.reduce((acc, c) => acc + (essay.includes(c) ? 1 : 0), 0);
+
+  const stop = new Set(['the', 'a', 'an', 'to', 'of', 'and', 'or', 'in', 'on', 'for', 'with', 'is', 'are', 'be', 'by', 'as', 'at', 'from']);
+  const topicTokens = (String(topic || '').toLowerCase().match(/[a-zA-Z]+/g) || []).filter(t => t.length > 2 && !stop.has(t));
+  const uniqTopic = Array.from(new Set(topicTokens));
+  const matchedTopic = uniqTopic.filter(t => essay.includes(t)).length;
+  const topicCoverage = uniqTopic.length > 0 ? matchedTopic / uniqTopic.length : 0.5;
+
+  const critiques = Array.isArray(step1Data.critiques) ? step1Data.critiques : [];
+  const profCritical = critiques.filter((c: any) => c?.category === 'Proficiency' && c?.severity === 'critical').length;
+  const profGeneral = critiques.filter((c: any) => c?.category === 'Proficiency' && c?.severity === 'general').length;
+  const clarityCritical = critiques.filter((c: any) => c?.category === 'Clarity' && c?.severity === 'critical').length;
+
+  // 3) 规则上限（防止不该高）
+  if (topicCoverage < 0.2) scores.content = Math.min(scores.content, 1.5);
+  else if (topicCoverage < 0.3) scores.content = Math.min(scores.content, 2.5);
+
+  if (sentenceCount < 4 || (paragraphCount < 2 && connectorHits < 1)) scores.organization = Math.min(scores.organization, 1.5);
+  else if (connectorHits < 1) scores.organization = Math.min(scores.organization, 2.0);
+
+  if (profCritical >= 4) scores.proficiency = Math.min(scores.proficiency, 2.5);
+  else if (profCritical >= 2 || profGeneral >= 6) scores.proficiency = Math.min(scores.proficiency, 3.5);
+
+  if (clarityCritical >= 2) scores.clarity = Math.min(scores.clarity, 1.5);
+
+  // 4) 规则下限（防止该高不高，要求有证据）
+  const goodTopic = topicCoverage >= 0.35;
+  const basicStructure = sentenceCount >= 6 && (paragraphCount >= 2 || connectorHits >= 2);
+  const nonSevereLang = profCritical <= 1;
+  if (goodTopic && basicStructure && nonSevereLang) {
+    scores.content = Math.max(scores.content, 2.5);
+    scores.organization = Math.max(scores.organization, 2.0);
+    scores.clarity = Math.max(scores.clarity, 2.0);
+    if (wordCount >= 120) scores.proficiency = Math.max(scores.proficiency, 3.0);
   }
-  critiqueData.generalComment = critiqueData.generalComment || '暂无评语';
-  critiqueData.issueOverview = critiqueData.issueOverview || { critical: [], general: [], minor: [] };
-  critiqueData.critiques = Array.isArray(critiqueData.critiques) ? critiqueData.critiques : [];
 
-  // Parse polish
-  let polishData: any;
-  try {
-    polishData = JSON.parse(polishJson);
-  } catch (parseError) {
-    console.error('Polish JSON parse failed. Raw:', polishJson.substring(0, 500));
-    polishData = {};
+  // 5) 总分重平衡：保持0.5步长 & 四维之和=total
+  const llmTotal = roundHalf(clamp(Number(step1Data.totalScore || 0), 0, 15));
+  let targetTotal = llmTotal;
+  const rulesSum = roundHalf(scores.content + scores.organization + scores.proficiency + scores.clarity);
+
+  // 小幅收敛：默认最多偏移1分；若高质量证据充分，允许最多上调2分（避免13封顶）
+  const strongHighEvidence =
+    topicCoverage >= 0.5 &&
+    basicStructure &&
+    wordCount >= 150 &&
+    profCritical <= 1 &&
+    clarityCritical === 0 &&
+    connectorHits >= 2;
+  if (Math.abs(rulesSum - llmTotal) > 1) {
+    if (rulesSum > llmTotal) {
+      const upCap = strongHighEvidence ? 2 : 1;
+      targetTotal = roundHalf(llmTotal + upCap);
+    } else {
+      targetTotal = roundHalf(llmTotal - 1);
+    }
+  } else {
+    targetTotal = rulesSum;
   }
-  polishData.contrastiveLearning = Array.isArray(polishData.contrastiveLearning) ? polishData.contrastiveLearning : [];
-  polishData.polishedEssay = polishData.polishedEssay || essayText;
 
-  // Prepare context for Step 2 (using polishData from parallel call)
-  const contrastiveContext = polishData.contrastiveLearning
+  let assigned = roundHalf(scores.content + scores.organization + scores.proficiency + scores.clarity);
+  while (assigned < targetTotal) {
+    const order = [...dims].sort((a, b) => (max[b] - scores[b]) - (max[a] - scores[a]));
+    const d = order.find(k => roundHalf(max[k] - scores[k]) >= 0.5);
+    if (!d) break;
+    scores[d] = roundHalf(scores[d] + 0.5);
+    assigned = roundHalf(assigned + 0.5);
+  }
+  while (assigned > targetTotal) {
+    const order = [...dims].sort((a, b) => scores[b] - scores[a]);
+    const d = order.find(k => scores[k] >= 0.5);
+    if (!d) break;
+    scores[d] = roundHalf(scores[d] - 0.5);
+    assigned = roundHalf(assigned - 0.5);
+  }
+
+  step1Data.subScores = {
+    content: scores.content,
+    organization: scores.organization,
+    proficiency: scores.proficiency,
+    clarity: scores.clarity,
+  };
+  step1Data.totalScore = roundHalf(
+    step1Data.subScores.content +
+    step1Data.subScores.organization +
+    step1Data.subScores.proficiency +
+    step1Data.subScores.clarity
+  );
+
+  // 高分天花板补丁：避免优质作文长期卡在13分
+  const criticalCount = Array.isArray(step1Data.issueOverview?.critical) ? step1Data.issueOverview.critical.length : 0;
+  const generalCount = Array.isArray(step1Data.issueOverview?.general) ? step1Data.issueOverview.general.length : 0;
+  // 高分触发条件：当其他三维接近满分、语言无重灾时放行
+  const otherThreeMax = step1Data.subScores.content >= 3.5 && step1Data.subScores.organization >= 2.5 && step1Data.subScores.clarity >= 2.5;
+  const canLiftHighBand =
+    step1Data.totalScore >= 12.5 && step1Data.totalScore <= 14 &&
+    criticalCount <= 1 &&
+    generalCount <= 4 &&
+    topicCoverage >= 0.4 &&
+    basicStructure &&
+    (step1Data.subScores.proficiency >= 3.0 || otherThreeMax);
+
+  if (canLiftHighBand) {
+    // 动态计算需要补多少分才能到14；如果无严重问题且极强证据甚至可到15
+    const currentTotal = roundHalf(
+      step1Data.subScores.content + step1Data.subScores.organization +
+      step1Data.subScores.proficiency + step1Data.subScores.clarity
+    );
+    const targetHigh = (criticalCount === 0 && generalCount <= 2 && strongHighEvidence) ? 15 : 14;
+    let bonus = roundHalf(targetHigh - currentTotal);
+    if (bonus < 0.5) bonus = 0.5; // 至少补0.5
+    if (bonus > 2.5) bonus = 2.5; // 安全上限
+
+    // 优先补 proficiency（最大空间），其次其他维度
+    const highOrder: Array<'content' | 'proficiency' | 'organization' | 'clarity'> = ['proficiency', 'content', 'organization', 'clarity'];
+    for (const d of highOrder) {
+      if (bonus <= 0) break;
+      const room = roundHalf(max[d] - step1Data.subScores[d]);
+      const add = Math.min(room, bonus, 1.0); // 每维度最多补1.0
+      if (add > 0) {
+        step1Data.subScores[d] = roundHalf(step1Data.subScores[d] + add);
+        bonus = roundHalf(bonus - add);
+      }
+    }
+    step1Data.totalScore = roundHalf(
+      step1Data.subScores.content +
+      step1Data.subScores.organization +
+      step1Data.subScores.proficiency +
+      step1Data.subScores.clarity
+    );
+  }
+
+  // Prepare context for Step 2
+  const contrastiveContext = step1Data.contrastiveLearning
     .map((c: ContrastivePoint, i: number) => `Point ${i + 1} (${c.category || 'General'}): User wrote "${c.userContent || ''}" -> Polished to "${c.polishedContent || ''}". Analysis: ${c.analysis || ''}`)
     .join('\n');
-  const polishedWordsContext = (polishData.polishedEssay || '').substring(0, 1000);
+  const polishedWordsContext = (step1Data.polishedEssay || '').substring(0, 1000);
 
   // 5. CALL STEP 2: Retraining Generation (INTEGRATED LEARNING)
   const step2SystemPrompt = `
@@ -919,8 +1106,8 @@ bandReason 用中文输出，需包含：第1步初步定档结果、第2步发�
       **Output Constraints:**
       - \`question\`: The specific instruction in CHINESE following the formats above.
       - \`originalContext\`: The "bad" example, simple sentence, or context description to be improved.
-      - \`hint\`: A specific "Expert Tip" pointing back to the model esay's technique (in CHINESE).
-      - \`mandatoryKeywords\`: List of 2-3 English keywords/phrases thast strictly force the use of the strategy (e.g., ["Admittedly", "However"]).
+      - \`hint\`: A specific "Expert Tip" pointing back to the model essay's technique (in CHINESE).
+      - \`mandatoryKeywords\`: List of 2-3 English keywords/phrases that strictly force the use of the strategy (e.g., ["Admittedly", "However"]).
       - \`referenceAnswer\`: A perfect C1-level answer (English).
       - \`explanation\`: Explain *why* this answer is better (e.g., "通过使用此技巧，你成功避免了...，提升了...") (in CHINESE).
       - \`materials\`: Extract 3-5 key phrases/words from the provided *polished essay context*: "${polishedWordsContext}".
@@ -988,8 +1175,7 @@ bandReason 用中文输出，需包含：第1步初步定档结果、第2步发�
   retraining.materials = Array.isArray(retraining.materials) ? retraining.materials : [];
 
   // 6. Merge and Return
-  // 合并：Step 1a 评分 + Critique 批注 + Polish 范文 + Step 2 练习
-  return { ...critiqueData, ...polishData, totalScore: scoringData.totalScore, subScores: scoringData.subScores, retraining };
+  return { ...step1Data, retraining };
 };
 
 // --- Module 3: Sentence Drills ---

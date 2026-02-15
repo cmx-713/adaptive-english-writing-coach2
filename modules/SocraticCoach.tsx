@@ -5,7 +5,7 @@ import PhaseOneCards from '../components/PhaseOneCards';
 import ResultsDisplay from '../components/ResultsDisplay';
 import HistoryModal from '../components/HistoryModal';
 import { fetchInspirationCards, fetchLanguageScaffolds, generateEssayIntroConclusion } from '../services/geminiService';
-import { getHistory, deleteFromHistory, saveToHistory, checkIsSaved } from '../services/dataService';
+import { getHistory, deleteFromHistory, saveToHistory, checkIsSaved } from '../services/storageService';
 import { UserInput, InspirationCard, ScaffoldContent, FlowState, HistoryItem, InspirationHistoryData, DimensionDraft } from '../types';
 
 interface SocraticCoachProps {
@@ -75,7 +75,7 @@ const SocraticCoach: React.FC<SocraticCoachProps> = ({ onSendToGrader }) => {
         cards: fetchedCards,
         userInputs: {}
       };
-      saveToHistory(input.topic, historyData, 'inspiration').catch(console.error);
+      saveToHistory(input.topic, historyData, 'inspiration');
 
       setFlowState('selecting_card');
     } catch (err: any) {
@@ -109,7 +109,7 @@ const SocraticCoach: React.FC<SocraticCoachProps> = ({ onSendToGrader }) => {
       const result = await fetchLanguageScaffolds(currentTopic, card.dimension, userIdea);
       setScaffoldData(result);
       currentDraftRef.current = '';
-      saveToHistory(currentTopic, result, 'scaffold').catch(console.error);
+      saveToHistory(currentTopic, result, 'scaffold');
       setFlowState('showing_result');
     } catch (err: any) {
       console.error(err);

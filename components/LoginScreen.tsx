@@ -1,8 +1,6 @@
 
 import React, { useState } from 'react';
 import { User } from '../types';
-import { supabase } from '../services/supabaseClient';
-import { setCurrentUserId } from '../services/supabaseService';
 
 interface LoginScreenProps {
   onLogin: (user: User) => void;
@@ -12,43 +10,14 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
   const [name, setName] = useState('');
   const [studentId, setStudentId] = useState('');
   const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim() || !studentId.trim()) {
       setError('请输入姓名和学号');
       return;
     }
-
-    setLoading(true);
-    setError('');
-
-    try {
-      // 调用安全的注册函数（绕过 RLS）
-      const { data, error } = await supabase.rpc('register_student', {
-        p_student_id: studentId.trim(),
-        p_name: name.trim(),
-        p_email: `${studentId.trim()}@temp.local`,
-      });
-
-      if (error) {
-        throw error;
-      }
-
-      if (!data || data.length === 0) {
-        throw new Error('注册失败，请稍后重试');
-      }
-
-      const user = data[0];
-      setCurrentUserId(user.id);
-      onLogin({ name: user.name, studentId: user.student_id });
-    } catch (err: any) {
-      console.error('登录失败:', err);
-      setError(err.message || '登录失败，请稍后重试');
-    } finally {
-      setLoading(false);
-    }
+    onLogin({ name: name.trim(), studentId: studentId.trim() });
   };
 
   return (
@@ -56,7 +25,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
       <div className="bg-white max-w-md w-full rounded-2xl shadow-xl border border-slate-100 p-8 animate-fade-in-up">
         
         <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-blue-900 rounded-xl flex items-center justify-center text-white font-serif font-bold text-3xl shadow-md border-2 border-blue-800 mx-auto mb-4">
+          <div className="w-16 h-16 bg-gradient-to-br from-indigo-600 to-blue-500 rounded-2xl flex items-center justify-center text-white font-serif font-bold text-3xl shadow-lg mx-auto mb-4">
             C
           </div>
           <h1 className="text-2xl font-serif font-bold text-slate-800">CET-4/6 Writing Coach</h1>
@@ -96,17 +65,9 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
 
           <button
             type="submit"
-            disabled={loading}
-            className="w-full py-4 rounded-xl font-bold text-white bg-blue-900 hover:bg-blue-950 shadow-md transition-colors flex items-center justify-center gap-2 text-lg disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full py-4 rounded-xl font-bold text-white bg-indigo-600 hover:bg-indigo-700 shadow-lg hover:shadow-indigo-500/30 hover:-translate-y-0.5 transition-all flex items-center justify-center gap-2 text-lg"
           >
-            {loading ? (
-              <>
-                <div className="w-5 h-5 border-3 border-white border-t-transparent rounded-full animate-spin"></div>
-                <span>登录中...</span>
-              </>
-            ) : (
-              '开始学习 (Start Learning)'
-            )}
+            开始学习 (Start Learning)
           </button>
         </form>
         

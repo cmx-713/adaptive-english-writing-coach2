@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { gradeEssay } from '../services/geminiService';
-import { saveToHistory, getHistory, deleteFromHistory, checkIsSaved } from '../services/dataService';
+import { saveToHistory, getHistory, deleteFromHistory, checkIsSaved } from '../services/storageService';
 import { EssayGradeResult, HistoryItem, EssayHistoryData } from '../types';
 import HistoryModal from '../components/HistoryModal';
 import GradingReport from '../components/GradingReport';
@@ -116,7 +116,7 @@ const EssayGrader: React.FC<EssayGraderProps> = ({ prefillData, onPrefillConsume
       const historyData: EssayHistoryData = { essay: essayText, result: gradingResult };
       
       // Strict dataType: 'essay_grade'
-      saveToHistory(effectiveTopic, historyData, 'essay_grade').catch(console.error);
+      saveToHistory(effectiveTopic, historyData, 'essay_grade');
       setIsSaved(true);
       
     } catch (e: any) {
@@ -134,7 +134,7 @@ const EssayGrader: React.FC<EssayGraderProps> = ({ prefillData, onPrefillConsume
         const historyData: EssayHistoryData = { essay: essayText, result: result };
         
         // Strict dataType: 'essay_grade'
-        saveToHistory(effectiveTopic, historyData, 'essay_grade').catch(console.error);
+        saveToHistory(effectiveTopic, historyData, 'essay_grade');
         setIsSaved(true);
     }
   };

@@ -517,7 +517,7 @@ const GradingReport: React.FC<GradingReportProps> = ({
     }
   }, [activeTab]);
 
-  // 滚动到右侧范文对应高亮位置（优先文本匹配，id 作为兜底）
+  // 滚动到右侧范文对应高亮位置（ID 优先，文本匹配兜底）
   const scrollToHighlight = (index: number, polishedContent?: string) => {
     requestAnimationFrame(() => {
       setTimeout(() => {
@@ -531,14 +531,24 @@ const GradingReport: React.FC<GradingReportProps> = ({
           container.scrollTo({ top: Math.max(0, targetScrollTop), behavior: 'smooth' });
         };
 
-        // 策略 1：用 polishedContent 文本在范文 DOM 中搜索匹配（最可靠）
+        // 策略 1（首选）：直接用 highlight-id 元素定位（最可靠）
+        const el = document.getElementById(`highlight-${index}`);
+        if (el && container.contains(el)) {
+          scrollToElement(el);
+          return;
+        }
+
+        // 策略 2（兜底）：用 polishedContent 文本在范文 DOM 中搜索匹配
         if (polishedContent) {
-          // 去掉 polishedContent 中可能存在的 highlight 标签，取前 40 个字符作为搜索关键词
           const cleanText = polishedContent.replace(/<\/?highlight[^>]*>/g, '').trim();
-          const searchKey = cleanText.substring(0, 40);
-          
-          if (searchKey.length > 5) {
-            // 遍历范文容器中所有文本 span，找到包含搜索关键词的元素
+          // 尝试多个长度的搜索关键词，从长到短
+          const searchKeys = [
+            cleanText.substring(0, 60),
+            cleanText.substring(0, 40),
+            cleanText.substring(0, 20),
+          ].filter(k => k.length > 5);
+
+          for (const searchKey of searchKeys) {
             const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, null);
             let node: Text | null;
             while ((node = walker.nextNode() as Text | null)) {
@@ -551,12 +561,6 @@ const GradingReport: React.FC<GradingReportProps> = ({
               }
             }
           }
-        }
-
-        // 策略 2：兜底 — 使用 highlight-id 元素
-        const el = document.getElementById(`highlight-${index}`);
-        if (el && container.contains(el)) {
-          scrollToElement(el);
         }
       }, 100);
     });

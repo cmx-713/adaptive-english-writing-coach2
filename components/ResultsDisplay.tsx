@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { ScaffoldContent, CollocationItem, DraftFeedback, SentenceFrame } from '../types';
 import DimensionDictionary from './DimensionDictionary';
 import { validateSentence, fetchMoreCollocations, analyzeDraft } from '../services/geminiService';
-import { saveToHistory, checkIsSaved } from '../services/dataService';
+import { saveToHistory, checkIsSaved } from '../services/storageService';
 
 interface ResultsDisplayProps {
   data: ScaffoldContent;
@@ -101,7 +101,7 @@ const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ data, topic, socraticQu
 
   const handleSave = () => {
     if (isSaved) return;
-    saveToHistory(topic, { ...data, collocations }, 'scaffold').catch(console.error); // Explicitly save as scaffold
+    saveToHistory(topic, { ...data, collocations }, 'scaffold'); // Explicitly save as scaffold
     setIsSaved(true);
   };
 

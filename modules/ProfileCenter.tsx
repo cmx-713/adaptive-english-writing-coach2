@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
-import { getAllLearningStats, LearningStats, getHistory, getAggregatedUserVocab, getAggregatedUserCollocations, getAggregatedUserErrors } from '../services/dataService';
+import { getAllLearningStats, LearningStats, getHistory, getAggregatedUserVocab, getAggregatedUserCollocations, getAggregatedUserErrors } from '../services/storageService';
 import { HistoryItem, ScaffoldContent, EssayHistoryData, AggregatedError, CritiqueCategory, EssayGradeResult, Tab, VocabularyItem } from '../types';
 import ResultsDisplay from '../components/ResultsDisplay';
 import GradingReport from '../components/GradingReport';
@@ -580,19 +580,12 @@ const ProfileCenter: React.FC<ProfileCenterProps> = ({ isActive, onNavigate }) =
   };
 
   // Effects & Data Loading
-  const refreshData = useCallback(async () => {
-    setLoading(true);
-    const stats = await getAllLearningStats();
-    const history = await getHistory();
-    const vocab = await getAggregatedUserVocab(15);
-    const collocations = await getAggregatedUserCollocations(20);
-    const errors = await getAggregatedUserErrors(20);
-    
-    setStats(stats);
-    setHistoryItems(history);
-    setRecentVocab(vocab);
-    setRecentCollocations(collocations);
-    setRecentErrors(errors);
+  const refreshData = useCallback(() => {
+    setStats(getAllLearningStats());
+    setHistoryItems(getHistory());
+    setRecentVocab(getAggregatedUserVocab(15));
+    setRecentCollocations(getAggregatedUserCollocations(20));
+    setRecentErrors(getAggregatedUserErrors(20));
     setLoading(false);
   }, []);
 
@@ -808,7 +801,7 @@ const ProfileCenter: React.FC<ProfileCenterProps> = ({ isActive, onNavigate }) =
                 <div className="flex-1 overflow-y-auto custom-scrollbar">
                   {activeVaultTab === 'vocabulary' ? (
                     recentVocab.length > 0 ? (
-                      <div className="flex flex-wrap gap-2 pr-2">
+                      <div className="flex flex-col gap-2 pr-2">
                          {recentVocab.map((vocab, i) => (
                            <VocabCard key={i} vocab={vocab} />
                          ))}
@@ -816,7 +809,7 @@ const ProfileCenter: React.FC<ProfileCenterProps> = ({ isActive, onNavigate }) =
                     ) : <div className="h-full flex flex-col items-center justify-center text-slate-400 text-sm py-8"><span>📭 暂无积累</span></div>
                   ) : (
                     recentCollocations.length > 0 ? (
-                      <div className="flex flex-wrap gap-2 pr-2">
+                      <div className="flex flex-col gap-2 pr-2">
                          {recentCollocations.map((col, i) => (
                            <CollocationBadge key={i} collocation={col} />
                          ))}
